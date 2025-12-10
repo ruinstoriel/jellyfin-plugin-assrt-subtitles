@@ -1,0 +1,74 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Assrt.net Subtitles</title>
+</head>
+<body>
+    <div id="assrtSubtitlesConfigurationPage" data-role="page" class="page type-interior pluginConfigurationPage">
+        <div data-role="content">
+            <div class="content-primary">
+                <form id="assrtSubtitlesConfigForm">
+                    <div class="inputContainer">
+                        <label for="assrtApiToken">API token</label>
+                        <input id="assrtApiToken" name="assrtApiToken" type="text" required />
+                        <div class="fieldDescription">
+                            Token from assrt.net. A development token is pre-filled for convenience.
+                        </div>
+                    </div>
+
+                    <div class="inputContainer">
+                        <label for="assrtLanguages">Preferred languages</label>
+                        <input id="assrtLanguages" name="assrtLanguages" type="text" placeholder="zho, eng" />
+                        <div class="fieldDescription">
+                            Comma separated ISO 639-3 codes (for example: zho, eng). Leave empty to use server defaults.
+                        </div>
+                    </div>
+
+                    <div>
+                        <button is="emby-button" type="submit" class="raised button-submit block emby-button">
+                            <span>Save</span>
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+
+    <script type="text/javascript">
+        (function () {
+            const pluginId = "6c94cceb-4ebc-4d5c-bbb6-2d1c9d0c2e40";
+            const form = document.querySelector("#assrtSubtitlesConfigForm");
+            const page = document.querySelector("#assrtSubtitlesConfigurationPage");
+            const tokenInput = document.querySelector("#assrtApiToken");
+            const languagesInput = document.querySelector("#assrtLanguages");
+
+            function loadConfiguration() {
+                Dashboard.showLoadingMsg();
+                ApiClient.getPluginConfiguration(pluginId).then(config => {
+                    tokenInput.value = config.ApiToken || "";
+                    languagesInput.value = (config.PreferredLanguages || []).join(", ");
+                    Dashboard.hideLoadingMsg();
+                });
+            }
+
+            function saveConfiguration(event) {
+                event.preventDefault();
+                Dashboard.showLoadingMsg();
+                ApiClient.getPluginConfiguration(pluginId).then(config => {
+                    config.ApiToken = tokenInput.value.trim();
+                    config.PreferredLanguages = languagesInput.value
+                        .split(",")
+                        .map(x => x.trim())
+                        .filter(Boolean);
+
+                    return ApiClient.updatePluginConfiguration(pluginId, config);
+                }).then(Dashboard.processPluginConfigurationUpdateResult);
+            }
+
+            document.addEventListener("DOMContentLoaded", loadConfiguration);
+            page?.addEventListener("pageshow", loadConfiguration);
+            form?.addEventListener("submit", saveConfiguration);
+        }());
+    </script>
+</body>
+</html>
