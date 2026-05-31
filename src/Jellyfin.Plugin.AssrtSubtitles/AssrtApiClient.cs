@@ -40,7 +40,7 @@ public class AssrtApiClient
     /// </summary>
     public async Task<IReadOnlyList<AssrtSubtitleEntry>> SearchAsync(string token, string query, CancellationToken cancellationToken)
     {
-        var url = $"{BaseUrl}/sub/search?token={Uri.EscapeDataString(token)}&q={Uri.EscapeDataString(query)}&cnt=20&is_file=1&filelist=1";
+        var url = $"{BaseUrl}/sub/search?token={Uri.EscapeDataString(token)}&q={Uri.EscapeDataString(query)}&cnt=10&is_file=0&filelist=1";
         var response = await SendAsync(url, cancellationToken).ConfigureAwait(false);
         return response?.Sub?.Subs ?? new List<AssrtSubtitleEntry>();
     }

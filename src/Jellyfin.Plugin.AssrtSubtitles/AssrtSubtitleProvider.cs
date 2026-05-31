@@ -189,7 +189,7 @@ public class AssrtSubtitleProvider : ISubtitleProvider
             && request.ParentIndexNumber.HasValue
             && request.IndexNumber.HasValue)
         {
-            return $"{request.SeriesName} S{request.ParentIndexNumber.Value:00}E{request.IndexNumber.Value:00}";
+            return $"{request.SeriesName}";
         }
 
         if (!string.IsNullOrWhiteSpace(request.Name))
