@@ -6,6 +6,9 @@ on:
   pull_request:
     branches: ["*"]
 
+permissions:
+  contents: write
+
 jobs:
   build:
     runs-on: ubuntu-latest
@@ -26,12 +29,35 @@ jobs:
 
       - name: Publish plugin
         run: |
-          dotnet publish src/Jellyfin.Plugin.AssrtSubtitles/Jellyfin.Plugin.AssrtSubtitles.csproj -c Release --no-build -o ./publish
+          # 编译到临时目录
+          dotnet publish src/Jellyfin.Plugin.AssrtSubtitles/Jellyfin.Plugin.AssrtSubtitles.csproj -c Release --no-build -o ./publish_raw
+          
+          # 创建精确打包的目录
+          mkdir -p ./publish_zip
           mkdir -p artifacts
-          (cd publish && zip -r ../artifacts/assrt-subtitles-plugin.zip .)
+          
+          # 只复制你指定的两个文件
+          cp ./publish_raw/Jellyfin.Plugin.AssrtSubtitles.dll ./publish_zip/
+          cp ./publish_raw/Jellyfin.Plugin.AssrtSubtitles.deps.json ./publish_zip/
+          
+          # 压缩为固定的文件名
+          (cd publish_zip && zip -r ../artifacts/assrt-subtitles-plugin.zip .)
 
       - name: Upload artifact
         uses: actions/upload-artifact@v4
         with:
           name: assrt-subtitles-plugin
           path: artifacts/assrt-subtitles-plugin.zip
+
+      # 仅在推送了 v* 格式的 tag 时才触发自动 Release 发布
+      - name: Create Release
+        if: github.ref_type == 'tag'
+        uses: softprops/action-gh-release@v2
+        with:
+          files: artifacts/assrt-subtitles-plugin.zip
+          name: ${{ github.ref_name }}  # Release 标题直接使用 tag 名（例如 v1.0.0）
+          tag_name: ${{ github.ref_name }} # 绑定的 tag
+          draft: false
+          prerelease: false
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
