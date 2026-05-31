@@ -33,3 +33,5 @@ The published folder contains the plugin DLLs you can copy to your Jellyfin `plu
 
 ## Continuous Integration
 The workflow in `.github/workflows/ci.yml` restores, builds, publishes the plugin, and uploads `assrt-subtitles-plugin.zip` as a build artifact for every push and pull request.
+
+emm
