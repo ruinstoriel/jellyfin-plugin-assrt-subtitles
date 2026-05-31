@@ -37,28 +37,49 @@ jobs:
           mkdir -p ./publish_zip
           mkdir -p artifacts
           
-          # 只复制你指定的两个文件
+          # 只复制指定的两个文件
           cp ./publish_raw/Jellyfin.Plugin.AssrtSubtitles.dll ./publish_zip/
           cp ./publish_raw/Jellyfin.Plugin.AssrtSubtitles.deps.json ./publish_zip/
           
           # 压缩为固定的文件名
           (cd publish_zip && zip -r ../artifacts/assrt-subtitles-plugin.zip .)
 
+      # 新增/修改步骤：计算 MD5 并转换为大写
+      - name: Calculate MD5 Checksum
+        id: calc_checksum
+        run: |
+          # 计算 md5，提取哈希部分，并利用 tr 将其转换为全大写
+          MD5_HASH=$(md5sum artifacts/assrt-subtitles-plugin.zip | awk '{print $1}' | tr '[:lower:]' '[:upper:]')
+          echo "MD5_HASH=$MD5_HASH" >> $GITHUB_ENV
+          
+          # 生成一个独立的 .md5 文件随 Release 一同发布
+          echo "$MD5_HASH  assrt-subtitles-plugin.zip" > artifacts/assrt-subtitles-plugin.zip.md5
+
       - name: Upload artifact
         uses: actions/upload-artifact@v4
         with:
           name: assrt-subtitles-plugin
-          path: artifacts/assrt-subtitles-plugin.zip
+          path: |
+            artifacts/assrt-subtitles-plugin.zip
+            artifacts/assrt-subtitles-plugin.zip.md5
 
-      # 仅在推送了 v* 格式的 tag 时才触发自动 Release 发布
+      # 发布到 Release
       - name: Create Release
         if: github.ref_type == 'tag'
         uses: softprops/action-gh-release@v2
         with:
-          files: artifacts/assrt-subtitles-plugin.zip
-          name: ${{ github.ref_name }}  # Release 标题直接使用 tag 名（例如 v1.0.0）
-          tag_name: ${{ github.ref_name }} # 绑定的 tag
+          files: |
+            artifacts/assrt-subtitles-plugin.zip
+            artifacts/assrt-subtitles-plugin.zip.md5
+          name: ${{ github.ref_name }}
+          tag_name: ${{ github.ref_name }}
           draft: false
           prerelease: false
+          body: |
+            ### Release Assets Checksum
+            
+            | File | MD5 Checksum |
+            | :--- | :--- |
+            | `assrt-subtitles-plugin.zip` | `${{ env.MD5_HASH }}` |
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
