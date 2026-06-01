@@ -106,8 +106,19 @@ public class AssrtSubtitleProvider : ISubtitleProvider
 
         var preferredLanguages = BuildPreferredLanguageList(request);
         var results = await _apiClient.SearchAsync(token, query, cancellationToken).ConfigureAwait(false);
-        
-        return results.Where(entry => !string.IsNullOrWhiteSpace(entry.NativeName)).Select(entry => MapToResult(entry, preferredLanguages, request.Language,request.IndexNumber));
+        int year = request.ProductionYear   ?? DateTime.Now.Year;
+        return results
+        .Where(entry => !string.IsNullOrWhiteSpace(entry.NativeName))
+        .OrderBy(entry => 
+            {
+                // 1. 确保字符串合法且至少有 4 位（能截出年份）
+                if (entry.UploadTime is { Length: >= 4 } && int.TryParse(entry.UploadTime[0..4], out int uploadYear))
+                {
+                    return Math.Abs(uploadYear - year); // 返回与目标年份的绝对距离
+                }
+                return int.MaxValue; // 解析失败或为空的排到最后面
+            })
+        .Select(entry => MapToResult(entry, preferredLanguages, request.Language,request.IndexNumber));
     }
 
     /// <inheritdoc />
