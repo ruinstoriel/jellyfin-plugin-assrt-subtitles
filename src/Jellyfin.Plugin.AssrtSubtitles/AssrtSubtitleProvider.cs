@@ -113,6 +113,7 @@ public class AssrtSubtitleProvider : ISubtitleProvider
     /// <inheritdoc />
     public async Task<SubtitleResponse> GetSubtitles(string id, CancellationToken cancellationToken)
     {
+        _logger.LogInformation("Fetching subtitle details for id {SubtitleId}", id);
         if (!int.TryParse(id, NumberStyles.Integer, CultureInfo.InvariantCulture, out var subtitleId))
         {
             throw new ArgumentException("Subtitle id must be numeric", nameof(id));
@@ -131,8 +132,9 @@ public class AssrtSubtitleProvider : ISubtitleProvider
         }
 
         var preferredLanguages = _preferredLanguages;
+        int idx;
         var language = ResolveLanguage(detail.LanguageInfo, preferredLanguages, null);
-        var file = SelectFile(detail, preferredLanguages);
+        var file = SelectFile(detail, preferredLanguages,_queryCache.TryGetValue(subtitleId, out idx) ? (int?)idx : (int?)null);
         if (file is null || string.IsNullOrWhiteSpace(file.Url))
         {
             throw new FileNotFoundException($"Subtitle {subtitleId} does not expose downloadable files.");
@@ -141,9 +143,10 @@ public class AssrtSubtitleProvider : ISubtitleProvider
         var data = await _apiClient.DownloadAsync(file.Url, cancellationToken).ConfigureAwait(false);
         var extension = GetExtension(file.FileName);
 
+        // 默认zip 的 filelist 是解压文件，这里的zip 是 filelist 中的依然是压缩文件，这种情况不多见，但也不是没有，所以优先判断扩展名，如果是压缩包则尝试解压，否则直接当做字幕文件处理
         if (ArchiveExtensions.Contains(extension))
         {
-            var (stream, format) = ExtractFromArchive(data, preferredLanguages,_queryCache.TryGetValue(subtitleId, out var idx) ? (int?)idx : (int?)null);
+            var (stream, format) = ExtractFromArchive(data, preferredLanguages,_queryCache.TryGetValue(subtitleId, out idx) ? (int?)idx : (int?)null);
             if (stream is null)
             {
                 throw new InvalidDataException($"Unable to extract a usable subtitle from archive {file.FileName ?? file.Url}");
@@ -360,7 +363,7 @@ public class AssrtSubtitleProvider : ISubtitleProvider
         return string.IsNullOrWhiteSpace(path) ? string.Empty : Path.GetExtension(path);
     }
 
-    private AssrtFileEntry? SelectFile(AssrtSubtitleEntry detail, IReadOnlyList<string> preferredLanguages)
+    private AssrtFileEntry? SelectFile(AssrtSubtitleEntry detail, IReadOnlyList<string> preferredLanguages, int? requestIndex)
     {
         var files = detail.FileList?.Where(f => !string.IsNullOrWhiteSpace(f.Url)).ToList() ?? new List<AssrtFileEntry>();
 
@@ -374,13 +377,14 @@ public class AssrtSubtitleProvider : ISubtitleProvider
         }
 
         return files
-            .OrderByDescending(f => ScoreFile(f, preferredLanguages))
+            .OrderByDescending(f => ScoreFile(f, preferredLanguages, requestIndex))
             .ThenBy(f => f.FileName, StringComparer.OrdinalIgnoreCase)
             .FirstOrDefault();
     }
 
-    private static int ScoreFile(AssrtFileEntry file, IReadOnlyList<string> preferredLanguages)
+    private  int ScoreFile(AssrtFileEntry file, IReadOnlyList<string> preferredLanguages, int? requestIndex)
     {
+        var name = file.FileName ?? string.Empty;
         var score = 0;
         var extension = GetExtension(file.FileName);
 
@@ -399,6 +403,12 @@ public class AssrtSubtitleProvider : ISubtitleProvider
                 preferredLanguages.Any(l => string.Equals(l, guessed, StringComparison.OrdinalIgnoreCase)))
             {
                 score += 3;
+            }
+                        // 文件名中有搜索过的索引
+            if(requestIndex != null && (name.Contains($"{requestIndex.Value:D2}", StringComparison.OrdinalIgnoreCase) || name.Contains($"{requestIndex.Value:D2}", StringComparison.OrdinalIgnoreCase)))
+            {
+                _logger.LogInformation("Archive entry {EntryName} contains the episode index {Index}, increasing score.", name, requestIndex);
+                score += 8;
             }
         }
 
