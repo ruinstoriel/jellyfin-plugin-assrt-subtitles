@@ -184,7 +184,7 @@ public class AssrtSubtitleProvider : ISubtitleProvider
         _logger.LogDebug("Mapping subtitle entry {SubtitleId} with name '{EntryName}' and resolved language '{Language}'", entry.Id, name, language);
         if(ArchiveExtensions.Contains(GetExtension(entry.FileName)) && requestIndex != null)
         {
-            _logger.LogDebug("Caching search result for subtitle {SubtitleId} with request index {Index} to improve archive entry selection in GetSubtitles.", entry.Id, requestIndex);
+            _logger.LogInformation("Caching search result for subtitle {SubtitleId} with request index {Index} to improve archive entry selection in GetSubtitles.", entry.Id, requestIndex);
             // 设置缓存策略
             var cacheOptions = new MemoryCacheEntryOptions()
                 // 绝对过期时间：从现在起 30 分钟后雷打不动必定过期
@@ -472,7 +472,7 @@ public class AssrtSubtitleProvider : ISubtitleProvider
             // 文件名中有搜索过的索引
             if(requestIndex != null && (name.Contains($"{requestIndex.Value:D2}", StringComparison.OrdinalIgnoreCase) || name.Contains($"{requestIndex.Value:D2}", StringComparison.OrdinalIgnoreCase)))
             {
-                _logger.LogDebug("Archive entry {EntryName} contains the episode index {Index}, increasing score.", name, requestIndex);
+                _logger.LogInformation("Archive entry {EntryName} contains the episode index {Index}, increasing score.", name, requestIndex);
                 score += 4;
             }
 
