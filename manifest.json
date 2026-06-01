@@ -8,6 +8,13 @@
     "category": "Subtitles",
     "versions": [
       {
+        "version": "0.1.8",
+        "changelog": "nativename 有时候就是没有，使用videoname. filelist 过多就过滤掉",
+        "targetAbi": "10.11.0.0",
+        "sourceUrl": "https://github.com/ruinstoriel/jellyfin-plugin-assrt-subtitles/releases/download/0.1.8/assrt-subtitles-plugin.zip",
+        "checksum": "2A74114C1E3171EB902D9677A0D42F1D"
+      },
+      {
         "version": "0.1.7",
         "changelog": "filelist 需要为1, 这样才有filename",
         "targetAbi": "10.11.0.0",
