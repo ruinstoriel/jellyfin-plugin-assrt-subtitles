@@ -195,7 +195,14 @@ public class AssrtSubtitleProvider : ISubtitleProvider
     private RemoteSubtitleInfo MapToResult(AssrtSubtitleEntry entry, IReadOnlyList<string> preferredLanguages, string? requestLanguage, int? requestIndex)
     {
         var language = ResolveLanguage(entry.LanguageInfo, preferredLanguages, requestLanguage);
-        var name = entry.NativeName ?? entry.VideoName ?? entry.Title ?? entry.FileName ?? $"Assrt #{entry.Id}";
+        var name = entry switch
+            {
+                { NativeName: not (null or "") } => entry.NativeName,
+                { VideoName:  not (null or "") } => entry.VideoName,
+                { Title:      not (null or "") } => entry.Title,
+                { FileName:   not (null or "") } => entry.FileName,
+                _                                => $"Assrt #{entry.Id}"
+            };
         _logger.LogInformation("Mapping subtitle entry {SubtitleId} with name '{EntryName}' and resolved language '{Language}'", entry.Id, name, language);
         if(ArchiveExtensions.Contains(GetExtension(entry.FileName)) && requestIndex != null)
         {
