@@ -108,7 +108,8 @@ public class AssrtSubtitleProvider : ISubtitleProvider
         var results = await _apiClient.SearchAsync(token, query, cancellationToken).ConfigureAwait(false);
         int year = request.ProductionYear   ?? DateTime.Now.Year;
         return results
-        .Where(entry => !string.IsNullOrWhiteSpace(entry.NativeName))
+        .Where(entry => !string.IsNullOrWhiteSpace(entry.VideoName))
+        .Where(entry => entry.FileList is {Count: > 0 and < 100} )
         .OrderBy(entry => 
             {
                 // 1. 确保字符串合法且至少有 4 位（能截出年份）
@@ -195,7 +196,7 @@ public class AssrtSubtitleProvider : ISubtitleProvider
     {
         var language = ResolveLanguage(entry.LanguageInfo, preferredLanguages, requestLanguage);
         var name = entry.NativeName ?? entry.VideoName ?? entry.Title ?? entry.FileName ?? $"Assrt #{entry.Id}";
-        _logger.LogDebug("Mapping subtitle entry {SubtitleId} with name '{EntryName}' and resolved language '{Language}'", entry.Id, name, language);
+        _logger.LogInformation("Mapping subtitle entry {SubtitleId} with name '{EntryName}' and resolved language '{Language}'", entry.Id, name, language);
         if(ArchiveExtensions.Contains(GetExtension(entry.FileName)) && requestIndex != null)
         {
             _logger.LogInformation("Caching search result for subtitle {SubtitleId} with request index {Index} to improve archive entry selection in GetSubtitles.", entry.Id, requestIndex);
