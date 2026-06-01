@@ -16,5 +16,5 @@ public class PluginConfiguration : BasePluginConfiguration
     /// <summary>
     /// Gets or sets the preferred subtitle languages (ISO 639-3 codes).
     /// </summary>
-    public List<string> PreferredLanguages { get; set; } = new() { "zho", "eng" };
+    public List<string> PreferredLanguages { get; set; } = new() { "zho"};
 }

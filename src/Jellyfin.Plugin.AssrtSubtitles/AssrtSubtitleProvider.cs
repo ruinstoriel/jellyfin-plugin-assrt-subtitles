@@ -408,7 +408,7 @@ public class AssrtSubtitleProvider : ISubtitleProvider
             if(requestIndex != null && (name.Contains($"{requestIndex.Value:D2}", StringComparison.OrdinalIgnoreCase) || name.Contains($"{requestIndex.Value:D2}", StringComparison.OrdinalIgnoreCase)))
             {
                 _logger.LogInformation("Archive entry {EntryName} contains the episode index {Index}, increasing score.", name, requestIndex);
-                score += 8;
+                score += 7;
             }
         }
 
