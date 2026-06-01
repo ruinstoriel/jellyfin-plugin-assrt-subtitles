@@ -8,14 +8,16 @@ on:
     branches: ["*"]
 
 permissions:
-  contents: write
+  contents: write # 允许发布 Release 和推送到 gh-pages
 
 jobs:
   build:
     runs-on: ubuntu-latest
     steps:
-      - name: Checkout
+      - name: Checkout Code
         uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
 
       - name: Setup .NET
         uses: actions/setup-dotnet@v4
@@ -30,30 +32,53 @@ jobs:
 
       - name: Publish plugin
         run: |
-          # 编译到临时目录
           dotnet publish src/Jellyfin.Plugin.AssrtSubtitles/Jellyfin.Plugin.AssrtSubtitles.csproj -c Release --no-build -o ./publish_raw
-          
-          # 创建精确打包的目录
           mkdir -p ./publish_zip
           mkdir -p artifacts
-          
-          # 只复制指定的两个文件
           cp ./publish_raw/Jellyfin.Plugin.AssrtSubtitles.dll ./publish_zip/
           cp ./publish_raw/Jellyfin.Plugin.AssrtSubtitles.deps.json ./publish_zip/
           
-          # 压缩为固定的文件名
+          # 压缩插件包（不含清单）
           (cd publish_zip && zip -r ../artifacts/assrt-subtitles-plugin.zip .)
 
-      # 新增/修改步骤：计算 MD5 并转换为大写
-      - name: Calculate MD5 Checksum
-        id: calc_checksum
+      - name: Process Manifest for GitHub Pages
+        if: github.ref_type == 'tag'
         run: |
-          # 计算 md5，提取哈希部分，并利用 tr 将其转换为全大写
-          MD5_HASH=$(md5sum artifacts/assrt-subtitles-plugin.zip | awk '{print $1}' | tr '[:lower:]' '[:upper:]')
-          echo "MD5_HASH=$MD5_HASH" >> $GITHUB_ENV
+          TAG_NAME="${{ github.ref_name }}"
+          COMMIT_MSG=$(git log -1 --pretty=%s)
           
-          # 生成一个独立的 .md5 文件随 Release 一同发布
-          echo "$MD5_HASH  assrt-subtitles-plugin.zip" > artifacts/assrt-subtitles-plugin.zip.md5
+          # 1. 计算最终产生的 ZIP 的 MD5 并转大写
+          ZIP_MD5=$(md5sum artifacts/assrt-subtitles-plugin.zip | awk '{print $1}' | tr '[:lower:]' '[:upper:]')
+          echo "ZIP_MD5=$ZIP_MD5" >> $GITHUB_ENV
+          echo "$ZIP_MD5  assrt-subtitles-plugin.zip" > artifacts/assrt-subtitles-plugin.zip.md5
+          
+          # 2. 准备一个专门用来发布到 GitHub Pages 的干净目录
+          mkdir -p ./pages_out
+          
+          # 3. 读取当前项目里的基础模板模板，并用 jq 追加最新版本节点
+          # 哪怕你 main 分支里的 manifest.json 一直不更新，CI 也会以它为底本，动态在内存里把最新一版叠加上去
+          NEW_VERSION_JSON=$(cat <<EOF
+          {
+            "version": "${TAG_NAME}",
+            "changelog": "${COMMIT_MSG}",
+            "targetAbi": "10.11.0.0",
+            "sourceUrl": "https://github.com/${{ github.repository }}/releases/download/${TAG_NAME}/assrt-subtitles-plugin.zip",
+            "checksum": "${ZIP_MD5}"
+          }
+          EOF
+          )
+          
+          jq --argjson new "$NEW_VERSION_JSON" '.[0].versions = ([$new] + .[0].versions)' manifest.json > ./pages_out/manifest.json
+
+      # 核心步骤：将生成的 manifest.json 单独部署到当前仓库的 gh-pages 分支
+      - name: Deploy Manifest to GitHub Pages
+        if: github.ref_type == 'tag'
+        uses: peaceiris/actions-gh-pages@v4
+        with:
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          publish_dir: ./pages_out # 只把这个目录里的 manifest.json 发送去当网页
+          publish_branch: gh-pages
+          force_orphan: false # 保持历史追加，而不是每次彻底清空分支
 
       - name: Upload artifact
         uses: actions/upload-artifact@v4
@@ -63,7 +88,7 @@ jobs:
             artifacts/assrt-subtitles-plugin.zip
             artifacts/assrt-subtitles-plugin.zip.md5
 
-      # 发布到 Release
+      # 发布到 GitHub Release
       - name: Create Release
         if: github.ref_type == 'tag'
         uses: softprops/action-gh-release@v2
@@ -80,6 +105,6 @@ jobs:
             
             | File | MD5 Checksum |
             | :--- | :--- |
-            | `assrt-subtitles-plugin.zip` | `${{ env.MD5_HASH }}` |
+            | `assrt-subtitles-plugin.zip` | `${{ env.ZIP_MD5 }}` |
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

@@ -15,7 +15,8 @@ using MediaBrowser.Model.Providers;
 using Microsoft.Extensions.Logging;
 using SharpCompress.Archives;
 using SharpCompress.Common;
-
+using Microsoft.Extensions.Caching.Memory;
+using ZstdSharp.Unsafe;
 namespace Jellyfin.Plugin.AssrtSubtitles;
 
 /// <summary>
@@ -53,6 +54,7 @@ public class AssrtSubtitleProvider : ISubtitleProvider
         ["langukr"] = "ukr"
     };
 
+    private readonly IMemoryCache _queryCache = new MemoryCache(new MemoryCacheOptions());
     private readonly AssrtApiClient _apiClient;
     private readonly ILogger<AssrtSubtitleProvider> _logger;
     private PluginConfiguration _configuration = new ();
@@ -104,8 +106,8 @@ public class AssrtSubtitleProvider : ISubtitleProvider
 
         var preferredLanguages = BuildPreferredLanguageList(request);
         var results = await _apiClient.SearchAsync(token, query, cancellationToken).ConfigureAwait(false);
-
-        return results.Select(entry => MapToResult(entry, preferredLanguages, request.Language));
+        
+        return results.Select(entry => MapToResult(entry, preferredLanguages, request.Language,request.IndexNumber));
     }
 
     /// <inheritdoc />
@@ -141,7 +143,7 @@ public class AssrtSubtitleProvider : ISubtitleProvider
 
         if (ArchiveExtensions.Contains(extension))
         {
-            var (stream, format) = ExtractFromArchive(data, preferredLanguages);
+            var (stream, format) = ExtractFromArchive(data, preferredLanguages,_queryCache.TryGetValue(subtitleId, out var idx) ? (int?)idx : (int?)null);
             if (stream is null)
             {
                 throw new InvalidDataException($"Unable to extract a usable subtitle from archive {file.FileName ?? file.Url}");
@@ -205,11 +207,21 @@ public class AssrtSubtitleProvider : ISubtitleProvider
         return string.Empty;
     }
 
-    private RemoteSubtitleInfo MapToResult(AssrtSubtitleEntry entry, IReadOnlyList<string> preferredLanguages, string? requestLanguage)
+    private RemoteSubtitleInfo MapToResult(AssrtSubtitleEntry entry, IReadOnlyList<string> preferredLanguages, string? requestLanguage, int? requestIndex)
     {
         var language = ResolveLanguage(entry.LanguageInfo, preferredLanguages, requestLanguage);
-        var name = entry.NativeName ?? entry.VideoName ?? entry.Title ?? $"Assrt #{entry.Id}";
+        var name = entry.NativeName ?? entry.VideoName ?? entry.Title ?? entry.FileName ?? $"Assrt #{entry.Id}";
 
+        if(ArchiveExtensions.Contains(GetExtension(entry.FileName)) && requestIndex != null)
+        {
+            // 设置缓存策略
+            var cacheOptions = new MemoryCacheEntryOptions()
+                // 绝对过期时间：从现在起 30 分钟后雷打不动必定过期
+                .SetAbsoluteExpiration(TimeSpan.FromMinutes(10))
+                // 滑动过期时间（可选）：如果 10 分钟内有人访问过，顺延 10 分钟
+                .SetSlidingExpiration(TimeSpan.FromMinutes(5));
+            _queryCache.Set(entry.Id, requestIndex, cacheOptions);
+        }
         return new RemoteSubtitleInfo
         {
             Id = entry.Id.ToString(CultureInfo.InvariantCulture),
@@ -419,7 +431,7 @@ public class AssrtSubtitleProvider : ISubtitleProvider
         return null;
     }
 
-    private static (MemoryStream? Stream, string? Format) ExtractFromArchive(byte[] data, IReadOnlyList<string> preferredLanguages)
+    private  (MemoryStream? Stream, string? Format) ExtractFromArchive(byte[] data, IReadOnlyList<string> preferredLanguages, int? requestIndex)
     {
         using var archive = ArchiveFactory.Open(new MemoryStream(data));
         var entries = archive.Entries.Where(entry => !entry.IsDirectory).ToList();
@@ -429,7 +441,7 @@ public class AssrtSubtitleProvider : ISubtitleProvider
         }
 
         var selected = entries
-            .OrderByDescending(entry => ScoreArchiveEntry(entry.Key ?? string.Empty, preferredLanguages))
+            .OrderByDescending(entry => ScoreArchiveEntry(entry.Key ?? string.Empty, preferredLanguages,requestIndex))
             .ThenBy(entry => entry.Key, StringComparer.OrdinalIgnoreCase)
             .First();
 
@@ -439,18 +451,26 @@ public class AssrtSubtitleProvider : ISubtitleProvider
         return (output, NormalizeFormatFromExtension(GetExtension(selected.Key)));
     }
 
-    private static int ScoreArchiveEntry(string name, IReadOnlyList<string> preferredLanguages)
+    private  int ScoreArchiveEntry(string name, IReadOnlyList<string> preferredLanguages, int? requestIndex)
     {
         var extension = GetExtension(name);
         var score = SubtitleExtensions.Contains(extension) ? 5 : 1;
 
         if (preferredLanguages.Count > 0)
         {
+            // 文件名中有喜好语言
             if (TryGuessLanguageFromFileName(name) is { } guessed &&
                 preferredLanguages.Any(l => string.Equals(l, guessed, StringComparison.OrdinalIgnoreCase)))
             {
                 score += 2;
             }
+            // 文件名中有搜索过的索引
+            if(requestIndex != null && (name.Contains($"{requestIndex.Value:D2}", StringComparison.OrdinalIgnoreCase) || name.Contains($"{requestIndex.Value:D2}", StringComparison.OrdinalIgnoreCase)))
+            {
+                _logger.LogDebug("Archive entry {EntryName} contains the episode index {Index}, increasing score.", name, requestIndex);
+                score += 4;
+            }
+
         }
 
         return score;
