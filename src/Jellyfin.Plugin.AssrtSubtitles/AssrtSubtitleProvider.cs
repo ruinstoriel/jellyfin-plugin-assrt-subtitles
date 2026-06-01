@@ -442,7 +442,7 @@ public class AssrtSubtitleProvider : ISubtitleProvider
         }
 
         var lowered = name.ToLowerInvariant();
-        if (Regex.IsMatch(lowered, @"(?<![a-z])chs|chinese|zh", RegexOptions.IgnoreCase))
+        if (Regex.IsMatch(lowered, @"(?<![a-z])chs|chinese|zh|sc|tc", RegexOptions.IgnoreCase))
         {
             return "zho";
         }
