@@ -107,7 +107,7 @@ public class AssrtSubtitleProvider : ISubtitleProvider
         var preferredLanguages = BuildPreferredLanguageList(request);
         var results = await _apiClient.SearchAsync(token, query, cancellationToken).ConfigureAwait(false);
         
-        return results.Select(entry => MapToResult(entry, preferredLanguages, request.Language,request.IndexNumber));
+        return results.Where(entry => !string.IsNullOrWhiteSpace(entry.NativeName)).Select(entry => MapToResult(entry, preferredLanguages, request.Language,request.IndexNumber));
     }
 
     /// <inheritdoc />
@@ -177,7 +177,45 @@ public class AssrtSubtitleProvider : ISubtitleProvider
             .Distinct()
             .ToList();
     }
-
+    private RemoteSubtitleInfo MapToResult(AssrtSubtitleEntry entry, IReadOnlyList<string> preferredLanguages, string? requestLanguage, int? requestIndex)
+    {
+        var language = ResolveLanguage(entry.LanguageInfo, preferredLanguages, requestLanguage);
+        var name = entry.NativeName ?? entry.VideoName ?? entry.Title ?? entry.FileName ?? $"Assrt #{entry.Id}";
+        _logger.LogDebug("Mapping subtitle entry {SubtitleId} with name '{EntryName}' and resolved language '{Language}'", entry.Id, name, language);
+        if(ArchiveExtensions.Contains(GetExtension(entry.FileName)) && requestIndex != null)
+        {
+            _logger.LogDebug("Caching search result for subtitle {SubtitleId} with request index {Index} to improve archive entry selection in GetSubtitles.", entry.Id, requestIndex);
+            // 设置缓存策略
+            var cacheOptions = new MemoryCacheEntryOptions()
+                // 绝对过期时间：从现在起 30 分钟后雷打不动必定过期
+                .SetAbsoluteExpiration(TimeSpan.FromMinutes(10))
+                // 滑动过期时间（可选）：如果 10 分钟内有人访问过，顺延 10 分钟
+                .SetSlidingExpiration(TimeSpan.FromMinutes(5));
+            _queryCache.Set(entry.Id, requestIndex, cacheOptions);
+        }
+        string dateStr = (entry.UploadTime != null && entry.UploadTime.Length >= 10) 
+                 ? $" [{entry.UploadTime[0..10]}]" 
+                 : "";
+        
+        return new RemoteSubtitleInfo
+        {
+            Id = entry.Id.ToString(CultureInfo.InvariantCulture),
+            ProviderName = Name,
+            Name = name+"-"+dateStr, // 添加上传日期到名称，格式为 YYYY-MM-DD
+            Comment = entry.LanguageInfo?.Description ?? entry.ReleaseSite,
+            Author = entry.ReleaseSite,
+            ThreeLetterISOLanguageName = language ?? requestLanguage,
+            DateCreated = ParseDate(entry.UploadTime),
+            CommunityRating = entry.VoteScore.HasValue ? (float?)entry.VoteScore.Value : null,
+            DownloadCount = entry.DownCount,
+            Format = NormalizeFormat(entry.SubType),
+            IsHashMatch = false,
+            HearingImpaired = false,
+            MachineTranslated = false,
+            AiTranslated = false,
+            Forced = false
+        };
+    }
     private string? GetApiToken()
     {
         var token = _configuration.ApiToken?.Trim();
@@ -207,40 +245,7 @@ public class AssrtSubtitleProvider : ISubtitleProvider
         return string.Empty;
     }
 
-    private RemoteSubtitleInfo MapToResult(AssrtSubtitleEntry entry, IReadOnlyList<string> preferredLanguages, string? requestLanguage, int? requestIndex)
-    {
-        var language = ResolveLanguage(entry.LanguageInfo, preferredLanguages, requestLanguage);
-        var name = entry.NativeName ?? entry.VideoName ?? entry.Title ?? entry.FileName ?? $"Assrt #{entry.Id}";
 
-        if(ArchiveExtensions.Contains(GetExtension(entry.FileName)) && requestIndex != null)
-        {
-            // 设置缓存策略
-            var cacheOptions = new MemoryCacheEntryOptions()
-                // 绝对过期时间：从现在起 30 分钟后雷打不动必定过期
-                .SetAbsoluteExpiration(TimeSpan.FromMinutes(10))
-                // 滑动过期时间（可选）：如果 10 分钟内有人访问过，顺延 10 分钟
-                .SetSlidingExpiration(TimeSpan.FromMinutes(5));
-            _queryCache.Set(entry.Id, requestIndex, cacheOptions);
-        }
-        return new RemoteSubtitleInfo
-        {
-            Id = entry.Id.ToString(CultureInfo.InvariantCulture),
-            ProviderName = Name,
-            Name = name,
-            Comment = entry.LanguageInfo?.Description ?? entry.ReleaseSite,
-            Author = entry.ReleaseSite,
-            ThreeLetterISOLanguageName = language ?? requestLanguage,
-            DateCreated = ParseDate(entry.UploadTime),
-            CommunityRating = entry.VoteScore.HasValue ? (float?)entry.VoteScore.Value : null,
-            DownloadCount = entry.DownCount,
-            Format = NormalizeFormat(entry.SubType),
-            IsHashMatch = false,
-            HearingImpaired = false,
-            MachineTranslated = false,
-            AiTranslated = false,
-            Forced = false
-        };
-    }
 
     private static DateTime? ParseDate(string? value)
     {
