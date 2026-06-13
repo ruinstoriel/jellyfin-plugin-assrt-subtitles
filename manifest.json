@@ -8,6 +8,13 @@
     "category": "Subtitles",
     "versions": [
       {
+        "version": "0.1.14.4",
+        "changelog": "config web 修改",
+        "targetAbi": "10.11.0.0",
+        "sourceUrl": "https://github.com/ruinstoriel/jellyfin-plugin-assrt-subtitles/releases/download/0.1.14.4/assrt-subtitles-plugin.zip",
+        "checksum": "E3D068166B403FE73465ED09BE335A9F"
+      },
+      {
         "version": "0.1.14.3",
         "changelog": "config web 修改",
         "targetAbi": "10.11.0.0",
