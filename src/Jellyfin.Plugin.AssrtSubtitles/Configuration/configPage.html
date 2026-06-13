@@ -1,8 +1,10 @@
 <!DOCTYPE html>
 <html>
+
 <head>
     <title>Assrt.net Subtitles</title>
 </head>
+
 <body>
     <div id="assrtSubtitlesConfigurationPage" data-role="page" class="page type-interior pluginConfigurationPage">
         <div data-role="content">
@@ -35,59 +37,60 @@
     </div>
 
     <script type="text/javascript">
-        (function () {
-            // 规范：保持你的专属插件 ID
-            const pluginId = "6c94cceb-4ebc-4d5c-bbb6-2d1c9d0c2e40";
 
-            // 核心修复：监听 Jellyfin 专属的页面准备就绪事件
-            document.querySelector('#assrtSubtitlesConfigurationPage')
-                ?.addEventListener('pageshow', function () {
-                    
-                    // 1. 在页面显示时，动态去获取当前活动页面的 DOM 节点（防止抓到 null 或历史脏节点）
-                    const page = this;
-                    const form = page.querySelector("#assrtSubtitlesConfigForm");
-                    const tokenInput = page.querySelector("#assrtApiToken");
-                    const languagesInput = page.querySelector("#assrtLanguages");
+        // 规范：保持你的专属插件 ID
+        const pluginId = "6c94cceb-4ebc-4d5c-bbb6-2d1c9d0c2e40";
 
-                    // 2. 执行加载配置
-                    Dashboard.showLoadingMsg();
-                    ApiClient.getPluginConfiguration(pluginId).then(config => {
-                        tokenInput.value = config.ApiToken || "";
-                        languagesInput.value = (config.PreferredLanguages || []).join(", ");
-                        Dashboard.hideLoadingMsg();
-                    }).catch(err => {
-                        console.error("加载 Assrt 插件配置失败:", err);
-                        Dashboard.hideLoadingMsg();
-                    });
+        // 核心修复：监听 Jellyfin 专属的页面准备就绪事件
+        document.querySelector('#assrtSubtitlesConfigurationPage')
+            ?.addEventListener('pageshow', function () {
 
-                    // 3. 拦截并绑定表单提交事件
-                    form?.on('submit', function (event) {
-                        event.preventDefault();
-                        Dashboard.showLoadingMsg();
+                // 1. 在页面显示时，动态去获取当前活动页面的 DOM 节点（防止抓到 null 或历史脏节点）
+                const page = this;
+                const form = page.querySelector("#assrtSubtitlesConfigForm");
+                const tokenInput = page.querySelector("#assrtApiToken");
+                const languagesInput = page.querySelector("#assrtLanguages");
 
-                        ApiClient.getPluginConfiguration(pluginId).then(config => {
-                            // 填充更新的值
-                            config.ApiToken = tokenInput.value.trim();
-                            config.PreferredLanguages = languagesInput.value
-                                .split(",")
-                                .map(x => x.trim())
-                                .filter(Boolean);
-
-                            // 提交到后端进行持久化存储
-                            return ApiClient.updatePluginConfiguration(pluginId, config);
-                        }).then(result => {
-                            Dashboard.hideLoadingMsg();
-                            // 弹出 Jellyfin 官方的“保存成功”绿色小气泡提示
-                            Dashboard.processPluginConfigurationUpdateResult(result);
-                        }).catch(err => {
-                            Dashboard.hideLoadingMsg();
-                            console.error("保存 Assrt 插件配置失败:", err);
-                        });
-
-                        return false;
-                    });
+                // 2. 执行加载配置
+                Dashboard.showLoadingMsg();
+                ApiClient.getPluginConfiguration(pluginId).then(config => {
+                    tokenInput.value = config.ApiToken || "";
+                    languagesInput.value = (config.PreferredLanguages || []).join(", ");
+                    Dashboard.hideLoadingMsg();
+                }).catch(err => {
+                    console.error("加载 Assrt 插件配置失败:", err);
+                    Dashboard.hideLoadingMsg();
                 });
-        }());
+
+                // 3. 拦截并绑定表单提交事件
+                form?.on('submit', function (event) {
+                    event.preventDefault();
+                    Dashboard.showLoadingMsg();
+
+                    ApiClient.getPluginConfiguration(pluginId).then(config => {
+                        // 填充更新的值
+                        config.ApiToken = tokenInput.value.trim();
+                        config.PreferredLanguages = languagesInput.value
+                            .split(",")
+                            .map(x => x.trim())
+                            .filter(Boolean);
+
+                        // 提交到后端进行持久化存储
+                        return ApiClient.updatePluginConfiguration(pluginId, config);
+                    }).then(result => {
+                        Dashboard.hideLoadingMsg();
+                        // 弹出 Jellyfin 官方的“保存成功”绿色小气泡提示
+                        Dashboard.processPluginConfigurationUpdateResult(result);
+                    }).catch(err => {
+                        Dashboard.hideLoadingMsg();
+                        console.error("保存 Assrt 插件配置失败:", err);
+                    });
+
+                    return false;
+                });
+            });
+        ;
     </script>
 </body>
+
 </html>
