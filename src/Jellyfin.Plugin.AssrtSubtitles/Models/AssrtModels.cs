@@ -75,6 +75,7 @@ public class AssrtSubtitleEntry
     public AssrtLanguageInfo? LanguageInfo { get; set; }
 
     [JsonPropertyName("filelist")]
+    [JsonConverter(typeof(AssrtFilelistConverter))]
     public List<AssrtFileEntry>? FileList { get; set; }
 }
 

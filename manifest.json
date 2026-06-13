@@ -8,6 +8,20 @@
     "category": "Subtitles",
     "versions": [
       {
+        "version": "0.1.14.7",
+        "changelog": "filelist 返回{}, 导致数组解析错误",
+        "targetAbi": "10.11.0.0",
+        "sourceUrl": "https://github.com/ruinstoriel/jellyfin-plugin-assrt-subtitles/releases/download/0.1.14.7/assrt-subtitles-plugin.zip",
+        "checksum": "B676EF3A0EFE0E38A958B8BE3F547586"
+      },
+      {
+        "version": "0.1.14.6",
+        "changelog": "config web 修改",
+        "targetAbi": "10.11.0.0",
+        "sourceUrl": "https://github.com/ruinstoriel/jellyfin-plugin-assrt-subtitles/releases/download/0.1.14.6/assrt-subtitles-plugin.zip",
+        "checksum": "257547DAA9CD8B26EE8B5A0115D282EC"
+      },
+      {
         "version": "0.1.14.5",
         "changelog": "config web 修改",
         "targetAbi": "10.11.0.0",
