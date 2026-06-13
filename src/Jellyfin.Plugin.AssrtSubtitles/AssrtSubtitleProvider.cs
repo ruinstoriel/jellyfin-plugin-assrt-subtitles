@@ -427,8 +427,8 @@ public class AssrtSubtitleProvider : ISubtitleProvider
                 _logger.LogInformation("File {FileName} TryGuessLanguageFromFileName contains preferred language {Language}, increasing score.", name, guessed);
                 score += 3;
             }
-            // 文件名中有搜索过的索引   
-            if (request?.IndexNumber is int index && name.Contains($"{index:D2}", StringComparison.OrdinalIgnoreCase))
+            // 文件名中有搜索过的索引   Regex.IsMatch(lowered, @"(?<![a-z])chs|chinese|zh|sc|tc", RegexOptions.IgnoreCase)
+            if (request?.IndexNumber is int index && Regex.IsMatch(name, index.ToString("D2") + @"(?![a-zA-Z0-9])", RegexOptions.IgnoreCase))
             {
                 _logger.LogInformation("File {FileName} contains the episode index {Index}, increasing score.", name, request.IndexNumber);
                 score += 3;
@@ -444,7 +444,7 @@ public class AssrtSubtitleProvider : ISubtitleProvider
             double finalScore = MediaMatcher.CalculateSimilarity(content, name);
             
             // 通常设定一个阈值（比如 0.6 或 0.75），大于该值判定为匹配成功
-            bool isMatch = finalScore > 0.2; // 这个阈值可以根据实际情况调整
+            bool isMatch = finalScore > 0.1; // 这个阈值可以根据实际情况调整
             if (isMatch)            {
                 _logger.LogInformation("File {FileName} has a media similarity score of {Score:F2} against content '{Content}', which is above the threshold. Increasing score.", name, finalScore, content);
                 score += (int)(finalScore * 10); // 根据相似度增加额外分数，最高可增加10分
