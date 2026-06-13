@@ -126,7 +126,7 @@ public class AssrtSubtitleProvider : ISubtitleProvider
     /// <inheritdoc />
     public async Task<SubtitleResponse> GetSubtitles(string id, CancellationToken cancellationToken)
     {
-        _logger.LogInformation("Fetching subtitle details for id {SubtitleId}", id);
+        _logger.LogInformation("Fetching subtitle details for id {SubtitleId}, preferred languages: {PreferredLanguages}", id, string.Join(", ", _preferredLanguages));
         if (!int.TryParse(id, NumberStyles.Integer, CultureInfo.InvariantCulture, out var subtitleId))
         {
             throw new ArgumentException("Subtitle id must be numeric", nameof(id));
@@ -188,6 +188,7 @@ public class AssrtSubtitleProvider : ISubtitleProvider
     public void ConfigurationChanged(PluginConfiguration configuration)
     {
         _configuration = configuration;
+        _logger.LogInformation("Configuration updated. Preferred languages: {PreferredLanguages}", string.Join(", ", configuration.PreferredLanguages));
         _preferredLanguages = configuration.PreferredLanguages
             .Select(l => l.Trim().ToLowerInvariant())
             .Where(l => !string.IsNullOrWhiteSpace(l))
