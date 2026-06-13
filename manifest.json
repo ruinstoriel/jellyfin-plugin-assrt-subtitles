@@ -8,6 +8,13 @@
     "category": "Subtitles",
     "versions": [
       {
+        "version": "0.1.14.12",
+        "changelog": "分数上调10倍，让相似度化为整数",
+        "targetAbi": "10.11.0.0",
+        "sourceUrl": "https://github.com/ruinstoriel/jellyfin-plugin-assrt-subtitles/releases/download/0.1.14.12/assrt-subtitles-plugin.zip",
+        "checksum": "B77D323F24921E848AAA0A43E627A1BE"
+      },
+      {
         "version": "0.1.14.11",
         "changelog": "集数匹配优化，后面不能是字母或数字",
         "targetAbi": "10.11.0.0",
