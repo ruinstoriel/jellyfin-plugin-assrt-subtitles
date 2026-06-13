@@ -42,6 +42,7 @@ public class AssrtSubtitleEntry
     public string? VideoName { get; set; }
 
     [JsonPropertyName("filename")]
+    [JsonConverter(typeof(AssrtFilelistConverter))]
     public string? FileName { get; set; }
 
     [JsonPropertyName("title")]
