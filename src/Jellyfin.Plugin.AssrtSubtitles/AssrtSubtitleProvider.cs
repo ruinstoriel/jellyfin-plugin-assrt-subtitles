@@ -56,6 +56,7 @@ public class AssrtSubtitleProvider : ISubtitleProvider
 
     private readonly IMemoryCache _queryCache = new MemoryCache(new MemoryCacheOptions());
     private readonly AssrtApiClient _apiClient;
+
     private readonly ILogger<AssrtSubtitleProvider> _logger;
     private PluginConfiguration _configuration = new ();
     private List<string> _preferredLanguages = new ();
@@ -119,7 +120,7 @@ public class AssrtSubtitleProvider : ISubtitleProvider
                 }
                 return int.MaxValue; // 解析失败或为空的排到最后面
             })
-        .Select(entry => MapToResult(entry, preferredLanguages, request.Language,request.IndexNumber));
+        .Select(entry => MapToResult(entry, preferredLanguages, request));
     }
 
     /// <inheritdoc />
@@ -144,9 +145,9 @@ public class AssrtSubtitleProvider : ISubtitleProvider
         }
 
         var preferredLanguages = _preferredLanguages;
-        int idx;
+        SubtitleSearchRequest request;
         var language = ResolveLanguage(detail.LanguageInfo, preferredLanguages, null);
-        var file = SelectFile(detail, preferredLanguages,_queryCache.TryGetValue(subtitleId, out idx) ? (int?)idx : (int?)null);
+        var file = SelectFile(detail, preferredLanguages,_queryCache.TryGetValue(subtitleId, out request) ? request : null);
         if (file is null || string.IsNullOrWhiteSpace(file.Url))
         {
             throw new FileNotFoundException($"Subtitle {subtitleId} does not expose downloadable files.");
@@ -158,7 +159,8 @@ public class AssrtSubtitleProvider : ISubtitleProvider
         // 默认zip 的 filelist 是解压文件，这里的zip 是 filelist 中的依然是压缩文件，这种情况不多见，但也不是没有，所以优先判断扩展名，如果是压缩包则尝试解压，否则直接当做字幕文件处理
         if (ArchiveExtensions.Contains(extension))
         {
-            var (stream, format) = ExtractFromArchive(data, preferredLanguages,_queryCache.TryGetValue(subtitleId, out idx) ? (int?)idx : (int?)null);
+
+            var (stream, format) = ExtractFromArchive(data, preferredLanguages,_queryCache.TryGetValue(subtitleId, out request) ? request : null);
             if (stream is null)
             {
                 throw new InvalidDataException($"Unable to extract a usable subtitle from archive {file.FileName ?? file.Url}");
@@ -192,9 +194,9 @@ public class AssrtSubtitleProvider : ISubtitleProvider
             .Distinct()
             .ToList();
     }
-    private RemoteSubtitleInfo MapToResult(AssrtSubtitleEntry entry, IReadOnlyList<string> preferredLanguages, string? requestLanguage, int? requestIndex)
+    private RemoteSubtitleInfo MapToResult(AssrtSubtitleEntry entry, IReadOnlyList<string> preferredLanguages, SubtitleSearchRequest request)
     {
-        var language = ResolveLanguage(entry.LanguageInfo, preferredLanguages, requestLanguage);
+        var language = ResolveLanguage(entry.LanguageInfo, preferredLanguages, request.Language);
         var name = entry switch
             {
                 { NativeName: not (null or "") } => entry.NativeName,
@@ -204,16 +206,16 @@ public class AssrtSubtitleProvider : ISubtitleProvider
                 _                                => $"Assrt #{entry.Id}"
             };
         _logger.LogInformation("Mapping subtitle entry {SubtitleId} with name '{EntryName}' and resolved language '{Language}'", entry.Id, name, language);
-        if(ArchiveExtensions.Contains(GetExtension(entry.FileName)) && requestIndex != null)
+        if(ArchiveExtensions.Contains(GetExtension(entry.FileName)) && request.IndexNumber != null)
         {
-            _logger.LogInformation("Caching search result for subtitle {SubtitleId} with request index {Index} to improve archive entry selection in GetSubtitles.", entry.Id, requestIndex);
+            _logger.LogInformation("Caching search result for subtitle {SubtitleId} with request index {Index} to improve archive entry selection in GetSubtitles.", entry.Id, request.IndexNumber);
             // 设置缓存策略
             var cacheOptions = new MemoryCacheEntryOptions()
                 // 绝对过期时间：从现在起 30 分钟后雷打不动必定过期
                 .SetAbsoluteExpiration(TimeSpan.FromMinutes(10))
                 // 滑动过期时间（可选）：如果 10 分钟内有人访问过，顺延 10 分钟
                 .SetSlidingExpiration(TimeSpan.FromMinutes(5));
-            _queryCache.Set(entry.Id, requestIndex, cacheOptions);
+            _queryCache.Set(entry.Id, request, cacheOptions);
         }
         string dateStr = (entry.UploadTime != null && entry.UploadTime.Length >= 10) 
                  ? $" [{entry.UploadTime[0..10]}]" 
@@ -226,7 +228,7 @@ public class AssrtSubtitleProvider : ISubtitleProvider
             Name = name+"-"+dateStr, // 添加上传日期到名称，格式为 YYYY-MM-DD
             Comment = entry.LanguageInfo?.Description ?? entry.ReleaseSite,
             Author = entry.ReleaseSite,
-            ThreeLetterISOLanguageName = language ?? requestLanguage,
+            ThreeLetterISOLanguageName = language ?? request.Language,
             DateCreated = ParseDate(entry.UploadTime),
             CommunityRating = entry.VoteScore.HasValue ? (float?)entry.VoteScore.Value : null,
             DownloadCount = entry.DownCount,
@@ -382,7 +384,7 @@ public class AssrtSubtitleProvider : ISubtitleProvider
         return string.IsNullOrWhiteSpace(path) ? string.Empty : Path.GetExtension(path);
     }
 
-    private AssrtFileEntry? SelectFile(AssrtSubtitleEntry detail, IReadOnlyList<string> preferredLanguages, int? requestIndex)
+    private AssrtFileEntry? SelectFile(AssrtSubtitleEntry detail, IReadOnlyList<string> preferredLanguages, SubtitleSearchRequest? request)
     {
         var files = detail.FileList?.Where(f => !string.IsNullOrWhiteSpace(f.Url)).ToList() ?? new List<AssrtFileEntry>();
 
@@ -396,12 +398,12 @@ public class AssrtSubtitleProvider : ISubtitleProvider
         }
 
         return files
-            .OrderByDescending(f => ScoreFile(f, preferredLanguages, requestIndex))
+            .OrderByDescending(f => ScoreFile(f, preferredLanguages, request))
             .ThenBy(f => f.FileName, StringComparer.OrdinalIgnoreCase)
             .FirstOrDefault();
     }
 
-    private  int ScoreFile(AssrtFileEntry file, IReadOnlyList<string> preferredLanguages, int? requestIndex)
+    private  int ScoreFile(AssrtFileEntry file, IReadOnlyList<string> preferredLanguages, SubtitleSearchRequest? request)
     {
         var name = file.FileName ?? string.Empty;
         var score = 0;
@@ -423,11 +425,27 @@ public class AssrtSubtitleProvider : ISubtitleProvider
             {
                 score += 3;
             }
-                        // 文件名中有搜索过的索引
-            if(requestIndex != null && (name.Contains($"{requestIndex.Value:D2}", StringComparison.OrdinalIgnoreCase) || name.Contains($"{requestIndex.Value:D2}", StringComparison.OrdinalIgnoreCase)))
+            // 文件名中有搜索过的索引   
+            if (request?.IndexNumber is int index && name.Contains($"{index:D2}", StringComparison.OrdinalIgnoreCase))
             {
-                _logger.LogInformation("Archive entry {EntryName} contains the episode index {Index}, increasing score.", name, requestIndex);
+                _logger.LogInformation("Archive entry {EntryName} contains the episode index {Index}, increasing score.", name, request.IndexNumber);
                 score += 7;
+            }
+            // 仅提取最后一级目录名，例如 "Cyberpunk Edgerunners"
+            string folderName = !string.IsNullOrEmpty(request?.MediaPath) 
+                ? System.IO.Path.GetFileName(request.MediaPath.TrimEnd('\\', '/')) 
+                : string.Empty;
+
+            string content = string.Concat(folderName, request?.Name, request?.SeriesName);
+
+            // 算分
+            double finalScore = MediaMatcher.CalculateSimilarity(content, name);
+            
+            // 通常设定一个阈值（比如 0.6 或 0.75），大于该值判定为匹配成功
+            bool isMatch = finalScore > 0.2; // 这个阈值可以根据实际情况调整
+            if (isMatch)            {
+                _logger.LogInformation("File {FileName} has a media similarity score of {Score:F2} against content '{Content}', which is above the threshold. Increasing score.", name, finalScore, content);
+                score += (int)(finalScore * 10); // 根据相似度增加额外分数，最高可增加10分
             }
         }
 
@@ -465,7 +483,7 @@ public class AssrtSubtitleProvider : ISubtitleProvider
         return null;
     }
 
-    private  (MemoryStream? Stream, string? Format) ExtractFromArchive(byte[] data, IReadOnlyList<string> preferredLanguages, int? requestIndex)
+    private  (MemoryStream? Stream, string? Format) ExtractFromArchive(byte[] data, IReadOnlyList<string> preferredLanguages, SubtitleSearchRequest? request)
     {
         using var archive = ArchiveFactory.Open(new MemoryStream(data));
         var entries = archive.Entries.Where(entry => !entry.IsDirectory).ToList();
@@ -475,7 +493,7 @@ public class AssrtSubtitleProvider : ISubtitleProvider
         }
 
         var selected = entries
-            .OrderByDescending(entry => ScoreArchiveEntry(entry.Key ?? string.Empty, preferredLanguages,requestIndex))
+            .OrderByDescending(entry => ScoreArchiveEntry(entry.Key ?? string.Empty, preferredLanguages,request?.IndexNumber))
             .ThenBy(entry => entry.Key, StringComparer.OrdinalIgnoreCase)
             .First();
 
