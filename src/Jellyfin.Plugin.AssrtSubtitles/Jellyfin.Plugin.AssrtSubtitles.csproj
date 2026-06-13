@@ -4,7 +4,7 @@
     <Nullable>enable</Nullable>
     <ImplicitUsings>disable</ImplicitUsings>
     <LangVersion>latest</LangVersion>
-    <Version>0.1.14.11</Version>
+    <Version>0.1.14.12</Version>
     <Authors>jellyfin-plugin-assrt-subtitles</Authors>
     <Company>jellyfin-plugin-assrt-subtitles</Company>
   </PropertyGroup>

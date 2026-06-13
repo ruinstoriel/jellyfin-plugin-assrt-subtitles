@@ -412,11 +412,11 @@ public class AssrtSubtitleProvider : ISubtitleProvider
 
         if (SubtitleExtensions.Contains(extension))
         {
-            score += 10;
+            score += 100;
         }
         else if (ArchiveExtensions.Contains(extension))
         {
-            score += 5;
+            score += 50;
         }
 
         if (preferredLanguages.Count > 0)
@@ -425,13 +425,13 @@ public class AssrtSubtitleProvider : ISubtitleProvider
                 preferredLanguages.Any(l => string.Equals(l, guessed, StringComparison.OrdinalIgnoreCase)))
             {
                 _logger.LogInformation("File {FileName} TryGuessLanguageFromFileName contains preferred language {Language}, increasing score.", name, guessed);
-                score += 3;
+                score += 30;
             }
             // 文件名中有搜索过的索引   Regex.IsMatch(lowered, @"(?<![a-z])chs|chinese|zh|sc|tc", RegexOptions.IgnoreCase)
             if (request?.IndexNumber is int index && Regex.IsMatch(name, index.ToString("D2") + @"(?![a-zA-Z0-9])", RegexOptions.IgnoreCase))
             {
                 _logger.LogInformation("File {FileName} contains the episode index {Index}, increasing score.", name, request.IndexNumber);
-                score += 3;
+                score += 30;
             }
             // 仅提取最后一级目录名，例如 "Cyberpunk Edgerunners"
             string folderName = !string.IsNullOrEmpty(request?.MediaPath) 
@@ -447,7 +447,7 @@ public class AssrtSubtitleProvider : ISubtitleProvider
             bool isMatch = finalScore > 0.1; // 这个阈值可以根据实际情况调整
             if (isMatch)            {
                 _logger.LogInformation("File {FileName} has a media similarity score of {Score:F2} against content '{Content}', which is above the threshold. Increasing score.", name, finalScore, content);
-                score += (int)(finalScore * 10); // 根据相似度增加额外分数，最高可增加10分
+                score += (int)(finalScore * 100); // 根据相似度增加额外分数，最高可增加100分
             }
         }
         _logger.LogInformation("File {FileName} scored {Score} for subtitle selection.", name, score);
