@@ -429,14 +429,14 @@ public class AssrtSubtitleProvider : ISubtitleProvider
             if (request?.IndexNumber is int index && name.Contains($"{index:D2}", StringComparison.OrdinalIgnoreCase))
             {
                 _logger.LogInformation("Archive entry {EntryName} contains the episode index {Index}, increasing score.", name, request.IndexNumber);
-                score += 7;
+                score += 3;
             }
             // 仅提取最后一级目录名，例如 "Cyberpunk Edgerunners"
             string folderName = !string.IsNullOrEmpty(request?.MediaPath) 
                 ? System.IO.Path.GetFileName(request.MediaPath.TrimEnd('\\', '/')) 
                 : string.Empty;
 
-            string content = string.Concat(folderName, request?.Name, request?.SeriesName);
+            string content = string.Concat(folderName, request?.SeriesName, request?.Name);
 
             // 算分
             double finalScore = MediaMatcher.CalculateSimilarity(content, name);
@@ -448,7 +448,7 @@ public class AssrtSubtitleProvider : ISubtitleProvider
                 score += (int)(finalScore * 10); // 根据相似度增加额外分数，最高可增加10分
             }
         }
-
+        _logger.LogInformation("File {FileName} scored {Score} for subtitle selection.", name, score);
         return score;
     }
 
