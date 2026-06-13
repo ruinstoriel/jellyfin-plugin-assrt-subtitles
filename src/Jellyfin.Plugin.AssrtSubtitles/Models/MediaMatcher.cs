@@ -80,7 +80,7 @@ public static class MediaMatcher
     }
 
     /// <summary>
-    /// 基于 S鴥rensen-Dice Coefficient 的双字匹配相似度 (0.0 - 1.0)
+    /// 基于 Srensen-Dice Coefficient 的双字匹配相似度 (0.0 - 1.0)
     /// </summary>
     private static double GetDiceCoefficient(string s, string t)
     {
