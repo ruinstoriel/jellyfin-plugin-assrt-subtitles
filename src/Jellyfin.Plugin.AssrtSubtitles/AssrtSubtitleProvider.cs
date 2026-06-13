@@ -423,12 +423,13 @@ public class AssrtSubtitleProvider : ISubtitleProvider
             if (TryGuessLanguageFromFileName(file.FileName) is { } guessed &&
                 preferredLanguages.Any(l => string.Equals(l, guessed, StringComparison.OrdinalIgnoreCase)))
             {
+                _logger.LogInformation("File {FileName} TryGuessLanguageFromFileName contains preferred language {Language}, increasing score.", name, guessed);
                 score += 3;
             }
             // 文件名中有搜索过的索引   
             if (request?.IndexNumber is int index && name.Contains($"{index:D2}", StringComparison.OrdinalIgnoreCase))
             {
-                _logger.LogInformation("Archive entry {EntryName} contains the episode index {Index}, increasing score.", name, request.IndexNumber);
+                _logger.LogInformation("File {FileName} contains the episode index {Index}, increasing score.", name, request.IndexNumber);
                 score += 3;
             }
             // 仅提取最后一级目录名，例如 "Cyberpunk Edgerunners"
