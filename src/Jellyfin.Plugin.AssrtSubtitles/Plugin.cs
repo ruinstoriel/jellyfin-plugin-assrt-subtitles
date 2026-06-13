@@ -23,7 +23,7 @@ public class Plugin : BasePlugin<PluginConfiguration>, IHasWebPages
     {
         Instance = this;
         ConfigurationChanged += (_, _) => AssrtSubtitleProvider.Instance?.ConfigurationChanged(Configuration);
-        // AssrtSubtitleProvider.Instance?.ConfigurationChanged(Configuration);
+        AssrtSubtitleProvider.Instance?.ConfigurationChanged(Configuration);
     }
 
     /// <summary>
