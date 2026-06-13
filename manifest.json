@@ -8,6 +8,13 @@
     "category": "Subtitles",
     "versions": [
       {
+        "version": "0.1.11",
+        "changelog": "根据名字算分",
+        "targetAbi": "10.11.0.0",
+        "sourceUrl": "https://github.com/ruinstoriel/jellyfin-plugin-assrt-subtitles/releases/download/0.1.11/assrt-subtitles-plugin.zip",
+        "checksum": "A28FBFE03677A3602BE36055797A9831"
+      },
+      {
         "version": "0.1.10",
         "changelog": "sc|tc 也要匹配加分",
         "targetAbi": "10.11.0.0",
