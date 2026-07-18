@@ -154,6 +154,7 @@ public class AssrtSubtitleProvider : ISubtitleProvider
         }
 
         var data = await _apiClient.DownloadAsync(file.Url, cancellationToken).ConfigureAwait(false);
+        _logger.LogInformation("Downloaded subtitle file {FileName} ({FileSize} bytes) for subtitle id {SubtitleId} from {FileUrl}", file.FileName, data.Length, subtitleId, file.Url);
         var extension = GetExtension(file.FileName);
 
         // 默认zip 的 filelist 是解压文件，这里的zip 是 filelist 中的依然是压缩文件，这种情况不多见，但也不是没有，所以优先判断扩展名，如果是压缩包则尝试解压，否则直接当做字幕文件处理
