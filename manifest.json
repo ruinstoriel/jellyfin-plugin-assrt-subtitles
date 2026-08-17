@@ -8,6 +8,13 @@
     "category": "Subtitles",
     "versions": [
       {
+        "version": "0.1.14.15",
+        "changelog": "季号集号匹配优化，添加否决逻辑",
+        "targetAbi": "10.11.0.0",
+        "sourceUrl": "https://github.com/ruinstoriel/jellyfin-plugin-assrt-subtitles/releases/download/0.1.14.15/assrt-subtitles-plugin.zip",
+        "checksum": "23D13EBA803904EEAA76A8C8711CC5D9"
+      },
+      {
         "version": "0.1.14.14",
         "changelog": "增加语言fallback",
         "targetAbi": "10.11.0.0",

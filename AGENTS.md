@@ -23,6 +23,14 @@ Releases happen by pushing a tag matching the plugin version (e.g. `0.1.14.14`).
 
 So: bump `<Version>` in the `.csproj` before tagging; never edit the `versions` array in `manifest.json` — CI generates it. `manifest.json` only needs its static fields (guid, name, description).
 
+## Release steps (follow exactly)
+
+1. Pick the next version: take the highest existing tag (`git tag --sort=-v:refname | Select-Object -First 1`) and bump the last segment (e.g. `0.1.14.14` → `0.1.14.15`). Never reuse an existing tag name.
+2. Set `<Version>` in `src/Jellyfin.Plugin.AssrtSubtitles/Jellyfin.Plugin.AssrtSubtitles.csproj` to that version.
+3. Build (`dotnet build Jellyfin.Plugin.AssrtSubtitles.sln -c Release`) to confirm it compiles.
+4. `git add -A && git commit -m "<中文提交信息>"` — the commit message becomes the release changelog, so make it descriptive. A git hook may auto-update `manifest.json`; commit whatever it produces.
+5. `git push origin master`, then `git tag <version>` and `git push origin <version>`. CI handles the rest (zip + manifest + Release).
+
 ## Architecture
 
 - `Plugin.cs` — entry point; `BasePlugin<PluginConfiguration>` + `IHasWebPages`; embeds `Configuration/configPage.html`.
