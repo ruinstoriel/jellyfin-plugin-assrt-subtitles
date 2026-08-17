@@ -20,16 +20,10 @@ public static class MediaMatcher
                 return 0.0; // 确认为 TV 且季号不同，安全归零
         }
 
-        // 集号冲突否决：仅在“同一编号体系”内比较，
-        // 普通剧集与 OVA/Special 使用各自独立的编号，互不否决（避免误伤）
-        bool sameEpisodeSpace =
-            (!IsSpecialLike(sourceMeta.Type) && !IsSpecialLike(targetMeta.Type)) ||
-            (IsSpecialLike(sourceMeta.Type) && sourceMeta.Type == targetMeta.Type);
 
-        if (sourceMeta.Episode.HasValue && targetMeta.Episode.HasValue)
+        if (IsSpecialLike(sourceMeta.Type) != IsSpecialLike(targetMeta.Type))
         {
-            if (sourceMeta.Episode.Value != targetMeta.Episode.Value && sameEpisodeSpace)
-                return 0.0; // 同一编号体系内集号不同，安全归零
+           return 0.0; // Regular 与 OVA/Special 不同，安全归零
         }
 
         // 4. 文本清洗（只针对纯标题部分）
