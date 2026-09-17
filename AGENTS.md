@@ -17,7 +17,7 @@ dotnet publish src/Jellyfin.Plugin.AssrtSubtitles/Jellyfin.Plugin.AssrtSubtitles
 ## Release workflow (tag-driven, do not hand-edit manifest.json)
 
 Releases happen by pushing a tag matching the plugin version (e.g. `0.1.14.14`). CI (`.github/workflows/ci.yml`) then:
-1. Zips only `Jellyfin.Plugin.AssrtSubtitles.dll` + `.deps.json` into `assrt-subtitles-plugin.zip` (the config page is an embedded resource in the DLL).
+1. Zips `Jellyfin.Plugin.AssrtSubtitles.dll` + `.deps.json` + the third-party runtime deps `SharpCompress.dll` and `ZstdSharp.dll` into `assrt-subtitles-plugin.zip` (the config page is an embedded resource in the DLL).
 2. Computes the zip MD5, builds a new manifest version entry from the **tag name** (version), **last commit message** (changelog), and prepends it to root `manifest.json`.
 3. Deploys that manifest to `gh-pages`, uploads the artifact, and creates a GitHub Release.
 
@@ -45,4 +45,5 @@ So: bump `<Version>` in the `.csproj` before tagging; never edit the `versions` 
 - `PluginConfiguration.cs` ships a prefilled dev API token and defaults `PreferredLanguages` to `["zho"]`. Treat tokens as secrets: never log the token; `GetApiToken()` returns null on blank, which silently skips search.
 - Code comments are predominantly Chinese — keep that convention.
 - Config page lives as an embedded resource; after changing it you must rebuild (no separate static file is shipped).
+- Plugin assemblies load in a per-plugin `AssemblyLoadContext` backed by `AssemblyDependencyResolver` on the plugin `.deps.json`; the resolver only looks inside the plugin folder, so **every non-Jellyfin NuGet dependency must be copied into the zip** (currently `SharpCompress.dll` + `ZstdSharp.dll`). Only ship deps the server doesn't already provide — never the `MediaBrowser.*` / `Jellyfin.*` / `Microsoft.*` shared assemblies.
 - Only the two tests in `AssrtFilelistConverterTests.cs` are meaningful; `UnitTest1.cs` is an empty placeholder.

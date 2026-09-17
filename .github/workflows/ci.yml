@@ -37,6 +37,12 @@ jobs:
           mkdir -p artifacts
           cp ./publish_raw/Jellyfin.Plugin.AssrtSubtitles.dll ./publish_zip/
           cp ./publish_raw/Jellyfin.Plugin.AssrtSubtitles.deps.json ./publish_zip/
+
+          # 第三方依赖必须随插件一起打包：Jellyfin 服务端不提供 SharpCompress，
+          # deps.json 里声明了它，运行时由 PluginLoadContext(AssemblyDependencyResolver)
+          # 在插件目录中查找，缺失会抛 FileNotFoundException: Could not load assembly 'SharpCompress'。
+          cp ./publish_raw/SharpCompress.dll ./publish_zip/
+          cp ./publish_raw/ZstdSharp.dll ./publish_zip/   # SharpCompress 的依赖（zstd 解压）
           
           # 压缩插件包（不含清单）
           (cd publish_zip && zip -r ../artifacts/assrt-subtitles-plugin.zip .)

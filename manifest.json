@@ -8,6 +8,13 @@
     "category": "Subtitles",
     "versions": [
       {
+        "version": "0.1.14.17",
+        "changelog": "匹配分析增加 OVA/Special 类型识别，普通剧集与特别篇互不匹配",
+        "targetAbi": "10.11.0.0",
+        "sourceUrl": "https://github.com/ruinstoriel/jellyfin-plugin-assrt-subtitles/releases/download/0.1.14.17/assrt-subtitles-plugin.zip",
+        "checksum": "55F7C49423CC86B3D32DE12BD0FC691B"
+      },
+      {
         "version": "0.1.14.16",
         "changelog": "匹配分析支持 OVA/Special 特别篇，避免与普通剧集互相误伤",
         "targetAbi": "10.11.0.0",
