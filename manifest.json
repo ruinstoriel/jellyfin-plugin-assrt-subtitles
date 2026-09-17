@@ -8,6 +8,13 @@
     "category": "Subtitles",
     "versions": [
       {
+        "version": "0.1.14.18",
+        "changelog": "修复插件包缺少 SharpCompress/ZstdSharp 依赖导致下载字幕时报 FileNotFoundException；打包时随插件一起发布第三方运行时依赖",
+        "targetAbi": "10.11.0.0",
+        "sourceUrl": "https://github.com/ruinstoriel/jellyfin-plugin-assrt-subtitles/releases/download/0.1.14.18/assrt-subtitles-plugin.zip",
+        "checksum": "96F99A690EFBA515553B02ED2A35FB05"
+      },
+      {
         "version": "0.1.14.17",
         "changelog": "匹配分析增加 OVA/Special 类型识别，普通剧集与特别篇互不匹配",
         "targetAbi": "10.11.0.0",
