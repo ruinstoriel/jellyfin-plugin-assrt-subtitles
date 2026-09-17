@@ -251,25 +251,43 @@ public class AssrtSubtitleProvider : ISubtitleProvider
 
     private static string BuildQuery(SubtitleSearchRequest request)
     {
+        string? title = null;
+
         if (request.ContentType == VideoContentType.Episode
             && !string.IsNullOrWhiteSpace(request.SeriesName)
             && request.ParentIndexNumber.HasValue
             && request.IndexNumber.HasValue)
         {
-            return $"{request.SeriesName}";
+            title = request.SeriesName;
         }
-
-        if (!string.IsNullOrWhiteSpace(request.Name))
+        else if (!string.IsNullOrWhiteSpace(request.Name))
         {
-            return request.Name;
+            title = request.Name;
         }
-
-        if (!string.IsNullOrWhiteSpace(request.MediaPath))
+        else if (!string.IsNullOrWhiteSpace(request.MediaPath))
         {
-            return Path.GetFileNameWithoutExtension(request.MediaPath);
+            title = Path.GetFileNameWithoutExtension(request.MediaPath);
         }
 
-        return string.Empty;
+        if (string.IsNullOrWhiteSpace(title))
+        {
+            return string.Empty;
+        }
+
+        title = title.Trim();
+
+        // 追加空格 + 年份，缩小搜索范围、提高命中准确度（如 "美国队长：复仇者先锋 2011"）；
+        // 若标题里已经带了该年份（常见于用文件名兜底的情况）就不重复追加。
+        var yearText = request.ProductionYear is int year && year > 0
+            ? year.ToString(CultureInfo.InvariantCulture)
+            : null;
+
+        if (yearText is not null && !title.Contains(yearText, StringComparison.Ordinal))
+        {
+            return $"{title} {yearText}";
+        }
+
+        return title;
     }
 
 
