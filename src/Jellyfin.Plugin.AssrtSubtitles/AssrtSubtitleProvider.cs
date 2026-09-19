@@ -56,6 +56,7 @@ public class AssrtSubtitleProvider : ISubtitleProvider
 
     private readonly IMemoryCache _queryCache = new MemoryCache(new MemoryCacheOptions());
     private readonly AssrtApiClient _apiClient;
+    private readonly TypeSafeClient _typeSafeClient;
 
     private readonly ILogger<AssrtSubtitleProvider> _logger;
     private PluginConfiguration _configuration = new ();
@@ -64,9 +65,10 @@ public class AssrtSubtitleProvider : ISubtitleProvider
     /// <summary>
     /// Initializes a new instance of the <see cref="AssrtSubtitleProvider"/> class.
     /// </summary>
-    public AssrtSubtitleProvider(AssrtApiClient apiClient, ILogger<AssrtSubtitleProvider> logger)
+    public AssrtSubtitleProvider(AssrtApiClient apiClient, TypeSafeClient typeSafeClient, ILogger<AssrtSubtitleProvider> logger)
     {
         _apiClient = apiClient;
+        _typeSafeClient = typeSafeClient;
         _logger = logger;
         Instance = this;
         if (Plugin.Instance?.Configuration is { } config)
@@ -107,20 +109,81 @@ public class AssrtSubtitleProvider : ISubtitleProvider
 
         var preferredLanguages = BuildPreferredLanguageList(request);
         var results = await _apiClient.SearchAsync(token, query, cancellationToken).ConfigureAwait(false);
-        int year = request.ProductionYear   ?? DateTime.Now.Year;
-        return results
-        .Where(entry => !string.IsNullOrWhiteSpace(entry.VideoName))
-        .Where(entry => entry.FileList is {Count: > 0 and < 100} )
-        .OrderBy(entry => 
+
+        var candidates = results
+            .Where(entry => !string.IsNullOrWhiteSpace(entry.VideoName))
+            .Where(entry => entry.FileList is { Count: > 0 and < 100 })
+            .ToList();
+
+        var ordered = await RankCandidatesAsync(candidates, request, cancellationToken).ConfigureAwait(false);
+        return ordered.Select(entry => MapToResult(entry, preferredLanguages, request));
+    }
+
+    /// <summary>
+    /// Orders search results by JEV relevance, falling back to the legacy upload-year proximity when JEV is unavailable.
+    /// </summary>
+    private async Task<IReadOnlyList<AssrtSubtitleEntry>> RankCandidatesAsync(IReadOnlyList<AssrtSubtitleEntry> entries, SubtitleSearchRequest request, CancellationToken cancellationToken)
+    {
+        var year = request.ProductionYear is int productionYear && productionYear > 0
+            ? productionYear
+            : DateTime.Now.Year;
+
+        if (entries.Count > 1)
+        {
+            var ranked = await TryRankWithJevAsync(entries, request, year, cancellationToken).ConfigureAwait(false);
+            if (ranked is not null)
             {
-                // 1. 确保字符串合法且至少有 4 位（能截出年份）
-                if (entry.UploadTime is { Length: >= 4 } && int.TryParse(entry.UploadTime[0..4], out int uploadYear))
-                {
-                    return Math.Abs(uploadYear - year); // 返回与目标年份的绝对距离
-                }
-                return int.MaxValue; // 解析失败或为空的排到最后面
-            })
-        .Select(entry => MapToResult(entry, preferredLanguages, request));
+                return ranked;
+            }
+        }
+
+        // 兜底：未配置 TypeSafe token 或 JEV 请求失败时，沿用“上传年份最接近”的排序
+        return entries
+            .OrderBy(entry => JevRanker.UploadYearDistance(entry, year))
+            .ThenBy(entry => entry.Id)
+            .ToList();
+    }
+
+    private async Task<IReadOnlyList<AssrtSubtitleEntry>?> TryRankWithJevAsync(IReadOnlyList<AssrtSubtitleEntry> entries, SubtitleSearchRequest request, int year, CancellationToken cancellationToken)
+    {
+        var apiKey = _configuration.TypeSafeApiKey?.Trim();
+        if (string.IsNullOrWhiteSpace(apiKey))
+        {
+            _logger.LogDebug("TypeSafe API key not configured; ordering search results by upload date");
+            return null;
+        }
+
+        var criteria = new Dictionary<string, string?>(StringComparer.Ordinal);
+        foreach (var entry in entries)
+        {
+            criteria[JevRanker.BuildCandidateKey(entry)] = JevRanker.ResolveDisplayName(entry);
+        }
+
+        if (criteria.Count < 2)
+        {
+            return null;
+        }
+
+        var state = JevRanker.BuildState(request);
+        var instructions = JevRanker.BuildInstructions(request);
+        _logger.LogInformation("Ranking {CandidateCount} subtitle candidates with JEV. State: {State}", criteria.Count, state);
+
+        var answer = await _typeSafeClient.EvaluateChoiceAsync(
+            apiKey,
+            _configuration.TypeSafeApiUrl,
+            state,
+            instructions,
+            criteria,
+            cancellationToken).ConfigureAwait(false);
+
+        if (answer is null)
+        {
+            _logger.LogWarning("JEV ranking returned no answer; ordering search results by upload date");
+            return null;
+        }
+
+        _logger.LogInformation("JEV picked subtitle {Choice} with confidence {Confidence}", answer.Choice, answer.Confidence ?? 0d);
+        return JevRanker.Order(entries, answer.Probabilities, answer.Choice, year);
     }
 
     /// <inheritdoc />
@@ -200,14 +263,7 @@ public class AssrtSubtitleProvider : ISubtitleProvider
     private RemoteSubtitleInfo MapToResult(AssrtSubtitleEntry entry, IReadOnlyList<string> preferredLanguages, SubtitleSearchRequest request)
     {
         var language = ResolveLanguage(entry.LanguageInfo, preferredLanguages, request.Language);
-        var name = entry switch
-            {
-                { NativeName: not (null or "") } => entry.NativeName,
-                { VideoName:  not (null or "") } => entry.VideoName,
-                { Title:      not (null or "") } => entry.Title,
-                { FileName:   not (null or "") } => entry.FileName,
-                _                                => $"Assrt #{entry.Id}"
-            };
+        var name = JevRanker.ResolveDisplayName(entry);
         _logger.LogInformation("Mapping subtitle entry {SubtitleId} with name '{EntryName}' and resolved language '{Language}'", entry.Id, name, language);
         if(ArchiveExtensions.Contains(GetExtension(entry.FileName)) && request.IndexNumber != null)
         {

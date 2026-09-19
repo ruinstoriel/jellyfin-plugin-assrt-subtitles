@@ -17,4 +17,15 @@ public class PluginConfiguration : BasePluginConfiguration
     /// Gets or sets the preferred subtitle languages (ISO 639-3 codes).
     /// </summary>
     public List<string> PreferredLanguages { get; set; } = new() { "zho"};
+
+    /// <summary>
+    /// Gets or sets the bearer token used to call the TypeSafe evaluation API (https://docs.typesafe.ai/api).
+    /// When empty the provider falls back to ordering search results by upload date.
+    /// </summary>
+    public string TypeSafeApiKey { get; set; } = string.Empty;
+
+    /// <summary>
+    /// Gets or sets the TypeSafe evaluation endpoint. Keep empty to use https://api.typesafe.ai/v1/systemone.
+    /// </summary>
+    public string TypeSafeApiUrl { get; set; } = "https://api.typesafe.ai/v1/systemone";
 }

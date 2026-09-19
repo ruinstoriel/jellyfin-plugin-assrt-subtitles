@@ -36,7 +36,9 @@ So: bump `<Version>` in the `.csproj` before tagging; never edit the `versions` 
 - `Plugin.cs` — entry point; `BasePlugin<PluginConfiguration>` + `IHasWebPages`; embeds `Configuration/configPage.html`.
 - `PluginServiceRegistrator.cs` — registers a named `HttpClient` ("AssrtSubtitles") with a proper User-Agent, `AssrtApiClient`, and `AssrtSubtitleProvider` as `ISubtitleProvider`.
 - `AssrtApiClient.cs` — `api.assrt.net/v1` search/detail/download.
-- `AssrtSubtitleProvider.cs` — search → map results; `GetSubtitles` → pick file, extract archives via SharpCompress; `_queryCache` stores search requests for 10 min to improve archive-entry selection. Note: `BuildQuery` for episodes uses only `SeriesName` (no season/episode in the query) and appends `" <ProductionYear>"` for accuracy when the year isn't already part of the title.
+- `TypeSafeClient.cs` — POSTs a `choice` question to the TypeSafe evaluation endpoint (https://docs.typesafe.ai/api, `jev-latest`) to rank search results. Configured via `TypeSafeApiKey`/`TypeSafeApiUrl`; on 429/529 it retries with exponential backoff and returns null (caller falls back to upload-date ordering).
+- `Models/JevRanker.cs` — pure helpers for the JEV prompt (`BuildState`/`BuildInstructions`) and for ordering candidates by probability; unit tested in `JevRankerTests.cs`.
+- `AssrtSubtitleProvider.cs` — search → JEV ranking (upload-year proximity is only the fallback) → map results; `GetSubtitles` → pick file, extract archives via SharpCompress; `_queryCache` stores search requests for 10 min to improve archive-entry selection. Note: `BuildQuery` for episodes uses only `SeriesName` (no season/episode in the query) and appends `" <ProductionYear>"` for accuracy when the year isn't already part of the title.
 - `Models/AssrtFilelistConverter.cs` — custom converter handling assrt's inconsistent `filelist` JSON: array, single object, `""`, or `{}`. Add test coverage here if touching it.
 - `Models/MediaMatcher.cs` — Dice + Levenshtein similarity with SxxExx/season/episode extraction and veto logic.
 

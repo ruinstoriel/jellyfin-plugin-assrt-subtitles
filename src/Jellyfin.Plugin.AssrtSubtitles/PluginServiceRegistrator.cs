@@ -31,6 +31,7 @@ public class PluginServiceRegistrator : IPluginServiceRegistrator
         });
 
         serviceCollection.AddSingleton<AssrtApiClient>();
+        serviceCollection.AddSingleton<TypeSafeClient>();
         serviceCollection.AddSingleton<ISubtitleProvider, AssrtSubtitleProvider>();
     }
 }

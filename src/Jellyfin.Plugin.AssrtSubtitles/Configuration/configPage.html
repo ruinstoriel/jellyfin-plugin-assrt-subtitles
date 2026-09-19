@@ -26,6 +26,24 @@
                         </div>
                     </div>
 
+                    <div class="inputContainer">
+                        <label for="typeSafeApiKey">TypeSafe API key</label>
+                        <input id="typeSafeApiKey" name="typeSafeApiKey" type="password" autocomplete="off" placeholder="Bearer token" />
+                        <div class="fieldDescription">
+                            Bearer token from the
+                            <a href="https://docs.typesafe.ai/api" target="_blank" rel="noopener noreferrer">TypeSafe evaluation API</a>.
+                            When set, the JEV model ranks search results; leave empty to fall back to upload date.
+                        </div>
+                    </div>
+
+                    <div class="inputContainer">
+                        <label for="typeSafeApiUrl">TypeSafe API URL</label>
+                        <input id="typeSafeApiUrl" name="typeSafeApiUrl" type="text" placeholder="https://api.typesafe.ai/v1/systemone" />
+                        <div class="fieldDescription">
+                            Evaluation endpoint. Leave empty to use https://api.typesafe.ai/v1/systemone.
+                        </div>
+                    </div>
+
                     <div>
                         <button is="emby-button" type="submit" class="raised button-submit block emby-button">
                             <span>Save</span>
@@ -46,6 +64,8 @@
                 ApiClient.getPluginConfiguration(pluginId).then(config => {
                     document.querySelector("#assrtApiToken").value = config.ApiToken || "";
                     document.querySelector("#assrtLanguages").value = (config.PreferredLanguages || []).join(",");
+                    document.querySelector("#typeSafeApiKey").value = config.TypeSafeApiKey || "";
+                    document.querySelector("#typeSafeApiUrl").value = config.TypeSafeApiUrl || "";
                     Dashboard.hideLoadingMsg();
                 }).catch(err => {
                     console.error("加载 Assrt 插件配置失败:", err);
@@ -62,6 +82,8 @@
                         .split(",")
                         .map(x => x.trim())
                         .filter(Boolean);
+                    config.TypeSafeApiKey = document.querySelector("#typeSafeApiKey").value.trim();
+                    config.TypeSafeApiUrl = document.querySelector("#typeSafeApiUrl").value.trim();
 
                     return ApiClient.updatePluginConfiguration(pluginId, config);
                 }).then(result => {

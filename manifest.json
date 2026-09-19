@@ -8,6 +8,13 @@
     "category": "Subtitles",
     "versions": [
       {
+        "version": "0.1.14.19",
+        "changelog": "搜索查询追加空格+年份（ProductionYear）以提高 assrt 命中准确度；标题已含该年份时不重复追加",
+        "targetAbi": "10.11.0.0",
+        "sourceUrl": "https://github.com/ruinstoriel/jellyfin-plugin-assrt-subtitles/releases/download/0.1.14.19/assrt-subtitles-plugin.zip",
+        "checksum": "B0DDD9D63A8DD8E11E56321AE975BDF0"
+      },
+      {
         "version": "0.1.14.18",
         "changelog": "修复插件包缺少 SharpCompress/ZstdSharp 依赖导致下载字幕时报 FileNotFoundException；打包时随插件一起发布第三方运行时依赖",
         "targetAbi": "10.11.0.0",
