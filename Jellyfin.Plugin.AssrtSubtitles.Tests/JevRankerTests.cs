@@ -30,25 +30,49 @@ public class JevRankerTests
     }
 
     [Fact]
-    public void BuildState_ForEpisode_IncludesSeriesSeasonEpisodeAndInstructions()
+    public void BuildState_ForEpisode_MatchesOnSeriesNameOnly()
     {
         var request = new SubtitleSearchRequest
         {
             ContentType = VideoContentType.Episode,
             SeriesName = "Severance",
             Name = "Good News About Hell",
+            ProductionYear = 2022,
             ParentIndexNumber = 1,
-            IndexNumber = 2
+            IndexNumber = 2,
+            MediaPath = @"D:\TV\Severance\Season 1\Severance S01E02 Good News About Hell 1080p WEB-DL.mkv"
         };
 
         var state = JevRanker.BuildState(request);
 
         Assert.Contains("找到最匹配剧集的字幕", state, StringComparison.Ordinal);
-        Assert.Contains("作品名字是Severance。", state, StringComparison.Ordinal);
+        Assert.Contains("剧名是Severance。", state, StringComparison.Ordinal);
+        Assert.Contains("发行年份是2022。", state, StringComparison.Ordinal);
         Assert.Contains("季是第1季。", state, StringComparison.Ordinal);
-        Assert.Contains("集是第2集。", state, StringComparison.Ordinal);
-        Assert.Contains("文件名是 Good News About Hell。", state, StringComparison.Ordinal);
-        Assert.Equal("哪一个最有可能是本剧集的字幕。", JevRanker.BuildInstructions(request));
+
+        // 集数/单集标题/视频文件名都不应进入提示词：具体是哪一集在下载后由归档内文件名挑选
+        Assert.DoesNotContain("第2集", state, StringComparison.Ordinal);
+        Assert.DoesNotContain("Good News About Hell", state, StringComparison.Ordinal);
+        Assert.DoesNotContain("S01E02", state, StringComparison.Ordinal);
+        Assert.Equal("哪一个最有可能是本剧的字幕。", JevRanker.BuildInstructions(request));
+    }
+
+    [Fact]
+    public void BuildState_ForMovieWithoutMediaPath_OmitsFileLine()
+    {
+        var request = new SubtitleSearchRequest
+        {
+            ContentType = VideoContentType.Movie,
+            Name = "美国队长",
+            ProductionYear = 2011
+        };
+
+        var state = JevRanker.BuildState(request);
+
+        Assert.Contains("作品名字是美国队长。", state, StringComparison.Ordinal);
+        Assert.Contains("发行年份是2011。", state, StringComparison.Ordinal);
+        Assert.DoesNotContain("文件", state, StringComparison.Ordinal);
+        Assert.Equal("哪一个最有可能是本电影的字幕。", JevRanker.BuildInstructions(request));
     }
 
     [Fact]

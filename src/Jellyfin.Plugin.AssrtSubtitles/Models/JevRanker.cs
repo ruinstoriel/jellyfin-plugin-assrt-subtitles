@@ -22,12 +22,47 @@ public static class JevRanker
     {
         ArgumentNullException.ThrowIfNull(request);
 
-        var isEpisode = request.ContentType == VideoContentType.Episode;
-        var title = ResolveRequestTitle(request, isEpisode);
+        return request.ContentType == VideoContentType.Episode
+            ? BuildEpisodeState(request)
+            : BuildMovieState(request);
+    }
 
-        var builder = new StringBuilder();
-        builder.Append(isEpisode ? "找到最匹配剧集的字幕。" : "找到最匹配电影的字幕。");
+    /// <summary>
+    /// 剧集：搜索到的字幕条目几乎都是整季/整剧包，同名条目之间靠集数无法区分，
+    /// 具体是哪一集在下载完成后由归档内部的文件名挑选（见 ScoreArchiveEntry）。
+    /// 因此这里只描述剧名（和年份、季），刻意不写入集号、单集标题和视频文件名，
+    /// 避免 JEV 被集数带偏而选中“同名但不同剧”的结果。
+    /// </summary>
+    private static string BuildEpisodeState(SubtitleSearchRequest request)
+    {
+        var builder = new StringBuilder("找到最匹配剧集的字幕。");
 
+        if (!string.IsNullOrWhiteSpace(request.SeriesName))
+        {
+            builder.Append("剧名是").Append(request.SeriesName.Trim()).Append('。');
+        }
+
+        if (request.ProductionYear is int year && year > 0)
+        {
+            builder.Append("发行年份是").Append(year.ToString(CultureInfo.InvariantCulture)).Append('。');
+        }
+
+        if (request.ParentIndexNumber is int season && season > 0)
+        {
+            builder.Append("季是第").Append(season.ToString(CultureInfo.InvariantCulture)).Append("季。");
+        }
+
+        return builder.ToString();
+    }
+
+    /// <summary>
+    /// 电影：片名 + 年份 + 视频文件名一起给出，便于 JEV 区分同名/重制版本。
+    /// </summary>
+    private static string BuildMovieState(SubtitleSearchRequest request)
+    {
+        var builder = new StringBuilder("找到最匹配电影的字幕。");
+
+        var title = !string.IsNullOrWhiteSpace(request.Name) ? request.Name : request.SeriesName;
         if (!string.IsNullOrWhiteSpace(title))
         {
             builder.Append("作品名字是").Append(title.Trim()).Append('。');
@@ -38,27 +73,10 @@ public static class JevRanker
             builder.Append("发行年份是").Append(year.ToString(CultureInfo.InvariantCulture)).Append('。');
         }
 
-        if (isEpisode)
-        {
-            if (request.ParentIndexNumber is int season && season > 0)
-            {
-                builder.Append("季是第").Append(season.ToString(CultureInfo.InvariantCulture)).Append("季。");
-            }
-
-            if (request.IndexNumber is int episode)
-            {
-                builder.Append("集是第").Append(episode.ToString(CultureInfo.InvariantCulture)).Append("集。");
-            }
-        }
-
         var mediaFileName = GetMediaFileName(request);
         if (!string.IsNullOrWhiteSpace(mediaFileName))
         {
             builder.Append("文件是 ").Append(mediaFileName).Append('。');
-        }
-        else if (!string.IsNullOrWhiteSpace(request.Name))
-        {
-            builder.Append("文件名是 ").Append(request.Name.Trim()).Append('。');
         }
 
         return builder.ToString();
@@ -71,7 +89,7 @@ public static class JevRanker
     {
         ArgumentNullException.ThrowIfNull(request);
         return request.ContentType == VideoContentType.Episode
-            ? "哪一个最有可能是本剧集的字幕。"
+            ? "哪一个最有可能是本剧的字幕。"
             : "哪一个最有可能是本电影的字幕。";
     }
 
@@ -157,26 +175,6 @@ public static class JevRanker
         }
 
         return int.MaxValue;
-    }
-
-    private static string? ResolveRequestTitle(SubtitleSearchRequest request, bool isEpisode)
-    {
-        if (isEpisode && !string.IsNullOrWhiteSpace(request.SeriesName))
-        {
-            return request.SeriesName;
-        }
-
-        if (!string.IsNullOrWhiteSpace(request.Name))
-        {
-            return request.Name;
-        }
-
-        if (!string.IsNullOrWhiteSpace(request.SeriesName))
-        {
-            return request.SeriesName;
-        }
-
-        return null;
     }
 
     private static string? GetMediaFileName(SubtitleSearchRequest request)
