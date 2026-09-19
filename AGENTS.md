@@ -28,8 +28,20 @@ So: bump `<Version>` in the `.csproj` before tagging; never edit the `versions` 
 1. Pick the next version: take the highest existing tag (`git tag --sort=-v:refname | Select-Object -First 1`) and bump the last segment (e.g. `0.1.14.14` → `0.1.14.15`). Never reuse an existing tag name.
 2. Set `<Version>` in `src/Jellyfin.Plugin.AssrtSubtitles/Jellyfin.Plugin.AssrtSubtitles.csproj` to that version.
 3. Build (`dotnet build Jellyfin.Plugin.AssrtSubtitles.sln -c Release`) to confirm it compiles.
-4. `git add -A && git commit -m "<中文提交信息>"` — the commit message becomes the release changelog, so make it descriptive. A git hook may auto-update `manifest.json`; commit whatever it produces.
+4. `git add -A && git commit -m "<中文主题>" -m "<中文要点列表>"` — see "Commit messages" below. A git hook may auto-update `manifest.json`; commit whatever it produces.
 5. `git push origin master`, then `git tag <version>` and `git push origin <version>`. CI handles the rest (zip + manifest + Release).
+
+## Commit messages
+
+Two-part format: a short subject line, then a bulleted body. Never pack the whole change into one long line.
+The entire message becomes the release changelog (CI reads the last commit message), so the body matters.
+
+```powershell
+git commit -m "搜索结果排序改为 JEV 模型优先" -m "- 新增 TypeSafeApiKey / TypeSafeApiUrl 配置项与配置页输入框`n- 新增 TypeSafeClient：Bearer 鉴权、429/529 指数退避重试`n- 新增 7 个 JevRanker 单元测试"
+```
+
+- Subject (~20-30 chars): what changed, no trailing period.
+- Body: one `-` bullet per logical change, one sentence each. Pass it as a second `-m`; use PowerShell backtick-`` `n `` for line breaks.
 
 ## Architecture
 
