@@ -8,6 +8,13 @@
     "category": "Subtitles",
     "versions": [
       {
+        "version": "0.1.14.20",
+        "changelog": "搜索结果排序改为 JEV 模型优先",
+        "targetAbi": "10.11.0.0",
+        "sourceUrl": "https://github.com/ruinstoriel/jellyfin-plugin-assrt-subtitles/releases/download/0.1.14.20/assrt-subtitles-plugin.zip",
+        "checksum": "422A02FCC5FDF1B4548D6073E38B857D"
+      },
+      {
         "version": "0.1.14.19",
         "changelog": "搜索查询追加空格+年份（ProductionYear）以提高 assrt 命中准确度；标题已含该年份时不重复追加",
         "targetAbi": "10.11.0.0",
