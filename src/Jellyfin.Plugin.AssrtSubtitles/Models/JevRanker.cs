@@ -19,12 +19,22 @@ public static class JevRanker
     /// Builds the natural language <c>state</c> describing the media the subtitles must match.
     /// </summary>
     public static string BuildState(SubtitleSearchRequest request)
+        => BuildState(request, request.ProductionYear);
+
+    /// <summary>
+    /// 同上，但年份由调用方统一给出：剧集用“剧的年份”（见 AssrtSubtitleProvider.ResolveSearchYear），
+    /// 保证同一部剧的所有集生成的提示词年份一致。
+    /// </summary>
+    /// <param name="request">The subtitle search request.</param>
+    /// <param name="productionYear">覆盖使用的年份；为 null 或 &lt;= 0 时不写入年份。</param>
+    /// <returns>The natural language state.</returns>
+    public static string BuildState(SubtitleSearchRequest request, int? productionYear)
     {
         ArgumentNullException.ThrowIfNull(request);
 
         return request.ContentType == VideoContentType.Episode
-            ? BuildEpisodeState(request)
-            : BuildMovieState(request);
+            ? BuildEpisodeState(request, productionYear)
+            : BuildMovieState(request, productionYear);
     }
 
     /// <summary>
@@ -33,7 +43,7 @@ public static class JevRanker
     /// 因此这里只描述剧名（和年份、季），刻意不写入集号、单集标题和视频文件名，
     /// 避免 JEV 被集数带偏而选中“同名但不同剧”的结果。
     /// </summary>
-    private static string BuildEpisodeState(SubtitleSearchRequest request)
+    private static string BuildEpisodeState(SubtitleSearchRequest request, int? productionYear)
     {
         var builder = new StringBuilder("找到最匹配剧集的字幕。");
 
@@ -42,7 +52,7 @@ public static class JevRanker
             builder.Append("剧名是").Append(request.SeriesName.Trim()).Append('。');
         }
 
-        if (request.ProductionYear is int year && year > 0)
+        if (productionYear is int year && year > 0)
         {
             builder.Append("发行年份是").Append(year.ToString(CultureInfo.InvariantCulture)).Append('。');
         }
@@ -58,7 +68,7 @@ public static class JevRanker
     /// <summary>
     /// 电影：片名 + 年份 + 视频文件名一起给出，便于 JEV 区分同名/重制版本。
     /// </summary>
-    private static string BuildMovieState(SubtitleSearchRequest request)
+    private static string BuildMovieState(SubtitleSearchRequest request, int? productionYear)
     {
         var builder = new StringBuilder("找到最匹配电影的字幕。");
 
@@ -68,7 +78,7 @@ public static class JevRanker
             builder.Append("作品名字是").Append(title.Trim()).Append('。');
         }
 
-        if (request.ProductionYear is int year && year > 0)
+        if (productionYear is int year && year > 0)
         {
             builder.Append("发行年份是").Append(year.ToString(CultureInfo.InvariantCulture)).Append('。');
         }

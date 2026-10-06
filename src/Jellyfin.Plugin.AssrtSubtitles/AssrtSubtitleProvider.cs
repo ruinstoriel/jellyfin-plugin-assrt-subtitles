@@ -6,8 +6,12 @@ using System.Linq;
 using System.Text.RegularExpressions;
 using System.Threading;
 using System.Threading.Tasks;
+using Jellyfin.Data.Enums;
 using Jellyfin.Plugin.AssrtSubtitles.Configuration;
 using Jellyfin.Plugin.AssrtSubtitles.Models;
+using MediaBrowser.Controller.Entities;
+using MediaBrowser.Controller.Entities.TV;
+using MediaBrowser.Controller.Library;
 using MediaBrowser.Controller.Providers;
 using MediaBrowser.Controller.Subtitles;
 using MediaBrowser.Model.Entities;
@@ -55,8 +59,14 @@ public class AssrtSubtitleProvider : ISubtitleProvider
     };
 
     private readonly IMemoryCache _queryCache = new MemoryCache(new MemoryCacheOptions());
+
+    /// <summary>
+    /// 按剧名缓存“剧的年份”，整部剧的所有集共用同一个年份，避免每次搜索都查媒体库。
+    /// </summary>
+    private readonly IMemoryCache _seriesYearCache = new MemoryCache(new MemoryCacheOptions());
     private readonly AssrtApiClient _apiClient;
     private readonly TypeSafeClient _typeSafeClient;
+    private readonly ILibraryManager _libraryManager;
 
     private readonly ILogger<AssrtSubtitleProvider> _logger;
     private PluginConfiguration _configuration = new ();
@@ -65,10 +75,15 @@ public class AssrtSubtitleProvider : ISubtitleProvider
     /// <summary>
     /// Initializes a new instance of the <see cref="AssrtSubtitleProvider"/> class.
     /// </summary>
-    public AssrtSubtitleProvider(AssrtApiClient apiClient, TypeSafeClient typeSafeClient, ILogger<AssrtSubtitleProvider> logger)
+    public AssrtSubtitleProvider(
+        AssrtApiClient apiClient,
+        TypeSafeClient typeSafeClient,
+        ILibraryManager libraryManager,
+        ILogger<AssrtSubtitleProvider> logger)
     {
         _apiClient = apiClient;
         _typeSafeClient = typeSafeClient;
+        _libraryManager = libraryManager;
         _logger = logger;
         Instance = this;
         if (Plugin.Instance?.Configuration is { } config)
@@ -100,7 +115,9 @@ public class AssrtSubtitleProvider : ISubtitleProvider
             return Enumerable.Empty<RemoteSubtitleInfo>();
         }
 
-        var query = BuildQuery(request);
+        // 剧集统一使用“剧的年份”（见 ResolveSearchYear），让整部剧的搜索词和排序保持一致
+        var searchYear = ResolveSearchYear(request);
+        var query = BuildQuery(request, searchYear);
         if (string.IsNullOrWhiteSpace(query))
         {
             _logger.LogDebug("Could not build a search query for the incoming request");
@@ -115,16 +132,16 @@ public class AssrtSubtitleProvider : ISubtitleProvider
             .Where(entry => entry.FileList is { Count: > 0 and < 100 })
             .ToList();
 
-        var ordered = await RankCandidatesAsync(candidates, request, cancellationToken).ConfigureAwait(false);
+        var ordered = await RankCandidatesAsync(candidates, request, searchYear, cancellationToken).ConfigureAwait(false);
         return ordered.Select(entry => MapToResult(entry, preferredLanguages, request));
     }
 
     /// <summary>
     /// Orders search results by JEV relevance, falling back to the legacy upload-year proximity when JEV is unavailable.
     /// </summary>
-    private async Task<IReadOnlyList<AssrtSubtitleEntry>> RankCandidatesAsync(IReadOnlyList<AssrtSubtitleEntry> entries, SubtitleSearchRequest request, CancellationToken cancellationToken)
+    private async Task<IReadOnlyList<AssrtSubtitleEntry>> RankCandidatesAsync(IReadOnlyList<AssrtSubtitleEntry> entries, SubtitleSearchRequest request, int? searchYear, CancellationToken cancellationToken)
     {
-        var year = request.ProductionYear is int productionYear && productionYear > 0
+        var year = searchYear is int productionYear && productionYear > 0
             ? productionYear
             : DateTime.Now.Year;
 
@@ -164,7 +181,7 @@ public class AssrtSubtitleProvider : ISubtitleProvider
             return null;
         }
 
-        var state = JevRanker.BuildState(request);
+        var state = JevRanker.BuildState(request, year);
         var instructions = JevRanker.BuildInstructions(request);
         _logger.LogInformation("Ranking {CandidateCount} subtitle candidates with JEV. State: {State}", criteria.Count, state);
 
@@ -305,7 +322,7 @@ public class AssrtSubtitleProvider : ISubtitleProvider
         return string.IsNullOrWhiteSpace(token) ? null : token;
     }
 
-    private static string BuildQuery(SubtitleSearchRequest request)
+    private static string BuildQuery(SubtitleSearchRequest request, int? searchYear)
     {
         string? title = null;
 
@@ -334,7 +351,7 @@ public class AssrtSubtitleProvider : ISubtitleProvider
 
         // 追加空格 + 年份，缩小搜索范围、提高命中准确度（如 "美国队长：复仇者先锋 2011"）；
         // 若标题里已经带了该年份（常见于用文件名兜底的情况）就不重复追加。
-        var yearText = request.ProductionYear is int year && year > 0
+        var yearText = searchYear is int year && year > 0
             ? year.ToString(CultureInfo.InvariantCulture)
             : null;
 
@@ -346,7 +363,92 @@ public class AssrtSubtitleProvider : ISubtitleProvider
         return title;
     }
 
+    /// <summary>
+    /// 解析本次搜索使用的年份。
+    /// 电影直接沿用请求里的 ProductionYear；剧集则去媒体库查一次“剧的年份”，
+    /// 整部剧（所有季、所有集）统一用这一个年份，避免每集各自的播出年份
+    /// 造成搜索词和按上传年份的排序每集都不一样。
+    /// </summary>
+    private int? ResolveSearchYear(SubtitleSearchRequest request)
+    {
+        if (request.ContentType != VideoContentType.Episode)
+        {
+            return request.ProductionYear is int movieYear && movieYear > 0 ? movieYear : null;
+        }
 
+        var seriesName = request.SeriesName?.Trim();
+        if (string.IsNullOrWhiteSpace(seriesName))
+        {
+            // 拿不到剧名时只能退回请求自带的年份（很可能是单集播出年份）
+            return request.ProductionYear;
+        }
+
+        if (_seriesYearCache.TryGetValue(seriesName, out int cachedYear))
+        {
+            return cachedYear;
+        }
+
+        var seriesYear = FindSeriesYear(request, seriesName);
+        if (seriesYear is int year)
+        {
+            _logger.LogDebug("Resolved series year {Year} for series {SeriesName}", year, seriesName);
+            _seriesYearCache.Set(seriesName, year, new MemoryCacheEntryOptions()
+                .SetAbsoluteExpiration(TimeSpan.FromMinutes(30)));
+            return year;
+        }
+
+        _logger.LogDebug("Could not resolve a series year for {SeriesName}; falling back to request year {Year}", seriesName, request.ProductionYear);
+        return request.ProductionYear;
+    }
+
+    /// <summary>
+    /// 从媒体库取剧集的年份：优先 ProductionYear，其次首播日期的年份。
+    /// 查不到或查询出错时返回 null，由调用方决定兜底年份。
+    /// </summary>
+    private int? FindSeriesYear(SubtitleSearchRequest request, string seriesName)
+    {
+        try
+        {
+            var series = FindSeries(request, seriesName);
+            if (series is null)
+            {
+                return null;
+            }
+
+            var year = series.ProductionYear ?? series.PremiereDate?.Year;
+            return year is int resolved && resolved > 0 ? resolved : null;
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "Failed to resolve the series year for {SeriesName}", seriesName);
+            return null;
+        }
+    }
+
+    /// <summary>
+    /// 定位剧集条目：先用视频文件路径反查（最准确，避免同名剧集串台），
+    /// 路径查不到再按剧名在媒体库里找 Series。
+    /// </summary>
+    private Series? FindSeries(SubtitleSearchRequest request, string seriesName)
+    {
+        if (!string.IsNullOrWhiteSpace(request.MediaPath)
+            && _libraryManager.FindByPath(request.MediaPath, false) is Episode episode
+            && episode.Series is { } seriesByPath)
+        {
+            return seriesByPath;
+        }
+
+        return _libraryManager
+            .GetItemList(new InternalItemsQuery
+            {
+                Name = seriesName,
+                IncludeItemTypes = new[] { BaseItemKind.Series },
+                Recursive = true,
+                Limit = 5
+            })
+            .OfType<Series>()
+            .FirstOrDefault();
+    }
 
     private static DateTime? ParseDate(string? value)
     {

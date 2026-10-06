@@ -58,6 +58,40 @@ public class JevRankerTests
     }
 
     [Fact]
+    public void BuildState_ForEpisode_UsesUnifiedSeriesYearInsteadOfEpisodeYear()
+    {
+        var request = new SubtitleSearchRequest
+        {
+            ContentType = VideoContentType.Episode,
+            SeriesName = "Severance",
+            // 单集自己的播出年份（各集不同），调用方会用“剧的年份”覆盖它
+            ProductionYear = 2025,
+            ParentIndexNumber = 2
+        };
+
+        var state = JevRanker.BuildState(request, 2022);
+
+        Assert.Contains("发行年份是2022。", state, StringComparison.Ordinal);
+        Assert.DoesNotContain("2025", state, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void BuildState_WithoutYear_OmitsYearLine()
+    {
+        var request = new SubtitleSearchRequest
+        {
+            ContentType = VideoContentType.Episode,
+            SeriesName = "Severance",
+            ProductionYear = 2025
+        };
+
+        var state = JevRanker.BuildState(request, null);
+
+        Assert.DoesNotContain("发行年份", state, StringComparison.Ordinal);
+        Assert.Contains("剧名是Severance。", state, StringComparison.Ordinal);
+    }
+
+    [Fact]
     public void BuildState_ForMovieWithoutMediaPath_OmitsFileLine()
     {
         var request = new SubtitleSearchRequest
